@@ -1,4 +1,164 @@
 ```
+package fjs.cs.action;
+
+import java.sql.SQLException;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+
+import org.apache.struts.action.Action;
+import org.apache.struts.action.ActionForm;
+import org.apache.struts.action.ActionForward;
+import org.apache.struts.action.ActionMapping;
+
+import fjs.cs.form.loginForm;
+import fjs.cs.handler.LoginHandler;
+
+public class loginAction extends Action {
+
+    private LoginHandler loginHandler = new LoginHandler(); // Khởi tạo handler ở đây
+
+    public ActionForward execute(ActionMapping mapping, ActionForm form,
+                                 HttpServletRequest req, HttpServletResponse resp) throws SQLException {
+
+        loginForm loginForm = (loginForm) form;
+        String action = req.getParameter("action");
+
+        if ("Login".equals(action)) {
+            return loginHandler.handleLogin(mapping, req, loginForm);
+        } 
+        if ("Clear".equals(action)) {
+            return loginHandler.handleClear(mapping, req, loginForm);
+        }
+
+        return mapping.findForward("failure");
+    }
+}
+
+```
+```
+package fjs.cs.handler;
+
+import java.sql.SQLException;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpSession;
+
+import org.apache.struts.action.ActionForward;
+import org.apache.struts.action.ActionMapping;
+import org.apache.struts.action.ActionMessage;
+import org.apache.struts.action.ActionMessages;
+
+import fjs.cs.dao.loginDao;
+import fjs.cs.form.loginForm;
+
+public class LoginHandler {
+    
+    private loginDao loginDao;
+
+    public LoginHandler() {
+        this.loginDao = new loginDao();
+    }
+
+    // Hàm xử lý đăng nhập
+    public ActionForward handleLogin(ActionMapping mapping, HttpServletRequest req, loginForm loginForm) throws SQLException {
+        String userid = loginForm.getUserID();
+        String password = loginForm.getPassWord();
+        ActionMessages errors = new ActionMessages();
+
+        // Kiểm tra dữ liệu đầu vào
+        if (isNullOrEmpty(userid)) {
+            errors.add("username", new ActionMessage("error.username.required"));
+        }
+        if (isNullOrEmpty(password)) {
+            errors.add("password", new ActionMessage("error.password.required"));
+        }
+        if (!errors.isEmpty()) {
+            saveErrors(req, errors);
+            return mapping.findForward("failure");
+        }
+
+        // Kiểm tra đăng nhập
+        int cnt = loginDao.checkLogin(userid, password);
+        if (cnt == 1) {
+            HttpSession session = req.getSession();
+            session.setAttribute("userid", userid);
+            return mapping.findForward("success");
+        } else {
+            errors.add("login", new ActionMessage("error.login.invalid"));
+            saveErrors(req, errors);
+            return mapping.findForward("failure");
+        }
+    }
+
+    // Hàm xử lý clear
+    public ActionForward handleClear(ActionMapping mapping, HttpServletRequest req, loginForm loginForm) {
+        req.setAttribute("errorMessageDiv", ""); // Reset thông báo lỗi
+        loginForm.setUserID("");
+        loginForm.setPassWord("");
+        return mapping.findForward("failure");
+    }
+
+    // Hàm kiểm tra chuỗi rỗng hoặc null
+    private boolean isNullOrEmpty(String str) {
+        return str == null || str.trim().isEmpty();
+    }
+}
+
+```
+```
+constants
+package fjs.cs.util;
+
+public class ActionConstants {
+    public static final String ACTION_LOGIN = "Login";
+    public static final String ACTION_CLEAR = "Clear";
+
+    public static final String SESSION_USERID = "userid";
+
+    public static final String ERROR_USERNAME_REQUIRED = "error.username.required";
+    public static final String ERROR_PASSWORD_REQUIRED = "error.password.required";
+    public static final String ERROR_LOGIN_INVALID = "error.login.invalid";
+
+    public static final String FORWARD_SUCCESS = "success";
+    public static final String FORWARD_FAILURE = "failure";
+}
+
+```
+-----------------------------------------DAY 3 ----------------------------------------------------
+```
+Thêm cấu hình cho Hibernate để sử dụng file ánh xạ XML:
+<bean id="sessionFactory" class="org.springframework.orm.hibernate5.LocalSessionFactoryBean">
+    <property name="dataSource" ref="dataSource"/>
+    <property name="mappingResources">
+        <list>
+            <value>User.hbm.xml</value>
+        </list>
+    </property>
+    <property name="hibernateProperties">
+        <props>
+            <prop key="hibernate.dialect">org.hibernate.dialect.SQLServerDialect</prop>
+            <prop key="hibernate.show_sql">true</prop>
+        </props>
+    </property>
+</bean>
+
+```
+```
+Tạo file User.hbm.xml trong thư mục src/main/resources hoặc WEB-INF:
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE hibernate-mapping PUBLIC
+        "-//Hibernate/Hibernate Mapping DTD 3.0//EN"
+        "http://www.hibernate.org/dtd/hibernate-mapping-3.0.dtd">
+<hibernate-mapping>
+    <class name="com.example.model.User" table="Users">
+        <id name="username" column="username">
+            <generator class="assigned"/>
+        </id>
+        <property name="password" column="password"/>
+    </class>
+</hibernate-mapping>
+```
+-----------------------------------------DAY 2 ----------------------------------------------------
+```
 web.xml
 <web-app>
     <!-- Spring ContextLoaderListener -->
