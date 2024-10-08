@@ -125,6 +125,7 @@ public class ActionConstants {
 ```
 -----------------------------------------DAY 3 ----------------------------------------------------
 ```
+xóa @id @entity
 Thêm cấu hình cho Hibernate để sử dụng file ánh xạ XML:
 <bean id="sessionFactory" class="org.springframework.orm.hibernate5.LocalSessionFactoryBean">
     <property name="dataSource" ref="dataSource"/>
