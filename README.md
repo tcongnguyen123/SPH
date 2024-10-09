@@ -1,4 +1,340 @@
 ```
+hibernate.cfg.xml
+Đây là tệp cấu hình Hibernate để kết nối với SQL Server.
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE hibernate-configuration PUBLIC
+        "-//Hibernate/Hibernate Configuration DTD 3.0//EN"
+        "http://hibernate.sourceforge.net/hibernate-configuration-3.0.dtd">
+<hibernate-configuration>
+    <session-factory>
+        <property name="hibernate.dialect">org.hibernate.dialect.SQLServerDialect</property>
+        <property name="hibernate.connection.driver_class">com.microsoft.sqlserver.jdbc.SQLServerDriver</property>
+        <property name="hibernate.connection.url">jdbc:sqlserver://localhost:1433;databaseName=CustomerSystem</property>
+        <property name="hibernate.connection.username">CustomerSystem</property>
+        <property name="hibernate.connection.password">123456</property>
+        <property name="hibernate.hbm2ddl.auto">update</property>
+        <property name="show_sql">true</property>
+        
+        <mapping resource="fjs/cs/model/MstUser.hbm.xml"/>
+    </session-factory>
+</hibernate-configuration>
+```
+```
+loginDao.java
+Tệp này đã được cập nhật để sử dụng Hibernate thay vì JDBC.
+package fjs.cs.dao;
+
+import org.hibernate.Session;
+import org.hibernate.Transaction;
+import org.hibernate.query.Query;
+import fjs.cs.model.MstUser;
+import fjs.cs.util.HibernateUtil;
+
+public class loginDao {
+    public int checkLogin(String userName, String passWord) {
+        int cnt = 0;
+        Transaction transaction = null;
+
+        try (Session session = HibernateUtil.getSessionFactory().openSession()) {
+            transaction = session.beginTransaction();
+
+            String hql = "SELECT COUNT(*) FROM MstUser WHERE deleteYmd IS NULL AND userID = :username AND password = :password";
+            Query<Long> query = session.createQuery(hql, Long.class);
+            query.setParameter("username", userName);
+            query.setParameter("password", passWord);
+
+            cnt = query.uniqueResult().intValue();
+
+            transaction.commit();
+        } catch (Exception e) {
+            if (transaction != null) {
+                transaction.rollback();
+            }
+            e.printStackTrace();
+        }
+        return cnt;
+    }
+}
+
+```
+```
+loginAction.java
+package fjs.cs.action;
+
+import java.sql.SQLException;
+
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import javax.servlet.http.HttpSession;
+
+import org.apache.struts.action.Action;
+import org.apache.struts.action.ActionForm;
+import org.apache.struts.action.ActionForward;
+import org.apache.struts.action.ActionMapping;
+import org.apache.struts.action.ActionMessage;
+import org.apache.struts.action.ActionMessages;
+import fjs.cs.dao.loginDao;
+import fjs.cs.form.loginForm;
+
+public class loginAction extends Action {
+    public ActionForward execute(ActionMapping mapping, ActionForm form,
+                                 HttpServletRequest req, HttpServletResponse resp) {
+        loginForm loginForm = (loginForm) form;
+        String userid = loginForm.getUserID();
+        String password = loginForm.getPassWord();
+        String action = req.getParameter("action");
+
+        ActionMessages errors = new ActionMessages();
+        if ("Login".equals(action)) {
+            if (userid == null || userid.trim().isEmpty()) {
+                errors.add("username", new ActionMessage("error.username.required"));
+                saveErrors(req, errors);
+                return mapping.findForward("failure");
+            }
+            if (password == null || password.trim().isEmpty()) {
+                errors.add("password", new ActionMessage("error.password.required"));
+                saveErrors(req, errors);
+                return mapping.findForward("failure");
+            } else {
+                loginDao loginDao = new loginDao();
+                int cnt = loginDao.checkLogin(userid, password);
+                if (cnt == 1) {
+                    HttpSession session = req.getSession();
+                    session.setAttribute("userid", userid);
+                    return mapping.findForward("success");
+                } else {
+                    errors.add("login", new ActionMessage("error.login.invalid"));
+                    saveErrors(req, errors);
+                    return mapping.findForward("failure");
+                }
+            }
+        }
+        if ("Clear".equals(action)) {
+            req.setAttribute("errorMessageDiv", "");
+            loginForm.setUserID("");
+            loginForm.setPassWord("");
+            return mapping.findForward("failure");
+        }
+        return mapping.findForward("failure");
+    }
+}
+
+```
+```
+loginDto.java
+Tệp này có thể không cần thay đổi, vì nó chỉ là DTO. Dưới đây là mã nguồn cho bạn:
+package fjs.cs.dto;
+
+public class loginDto {
+    private String userID; 
+    private String passWord;
+
+    public loginDto(String userID, String passWord) {
+        super();
+        this.userID = userID;
+        this.passWord = passWord;
+    }
+
+    public String getUserID() {
+        return userID;
+    }
+
+    public void setUserID(String userID) {
+        this.userID = userID;
+    }
+
+    public String getPassWord() {
+        return passWord;
+    }
+
+    public void setPassWord(String passWord) {
+        this.passWord = passWord;
+    }
+}
+
+```
+```
+loginForm.java
+Tệp này cũng không cần thay đổi nhiều, nhưng đây là mã cho bạn tham khảo:
+package fjs.cs.form;
+
+import org.apache.struts.action.ActionForm;
+
+public class loginForm extends ActionForm {
+    private static final long serialVersionUID = 1L;
+    private String userID; 
+    private String passWord;
+
+    public loginForm() {
+        super();
+    }
+
+    public String getUserID() {
+        return userID;
+    }
+
+    public void setUserID(String userID) {
+        this.userID = userID;
+    }
+
+    public String getPassWord() {
+        return passWord;
+    }
+
+    public void setPassWord(String passWord) {
+        this.passWord = passWord;
+    }
+}
+
+```
+```
+struts-config.xml
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE struts-config PUBLIC
+    "-//Apache Software Foundation//DTD Struts Configuration 1.3//EN"
+    "http://struts.apache.org/dtds/struts-config_1_3.dtd">
+
+<struts-config>
+    <form-beans>
+        <form-bean name="loginForm" type="fjs.cs.form.loginForm"/>
+    </form-beans>
+
+    <action-mappings>
+        <action path="/login"
+                type="fjs.cs.action.loginAction"
+                name="loginForm"
+                scope="request"
+                input="/login.jsp">
+            <forward name="success" path="/welcome.jsp"/>
+            <forward name="failure" path="/login.jsp"/>
+        </action>
+    </action-mappings>
+</struts-config>
+
+```
+```
+web.xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE web-app PUBLIC 
+    "-//Sun Microsystems, Inc.//DTD Web Application 2.3//EN" 
+    "http://java.sun.com/dtd/web-app_2_3.dtd">
+
+<web-app>
+    <display-name>HelloStruts1x</display-name>
+
+    <!-- Spring Context Configuration -->
+    <context-param>
+        <param-name>contextConfigLocation</param-name>
+        <param-value>/WEB-INF/applicationContext.xml</param-value>
+    </context-param>
+    
+    <!-- Spring Context Loader Listener -->
+    <listener>
+        <listener-class>org.springframework.web.context.ContextLoaderListener</listener-class>
+    </listener>
+
+    <!-- Struts Action Servlet -->
+    <servlet>
+        <servlet-name>action</servlet-name>
+        <servlet-class>org.apache.struts.action.ActionServlet</servlet-class>
+        <init-param>
+            <param-name>config</param-name>
+            <param-value>/WEB-INF/struts-config.xml</param-value>
+        </init-param>
+        <load-on-startup>2</load-on-startup>
+    </servlet>
+
+    <servlet-mapping>
+        <servlet-name>action</servlet-name>
+        <url-pattern>*.do</url-pattern>
+    </servlet-mapping>
+    
+    <welcome-file-list>
+        <welcome-file>index.jsp</welcome-file>
+    </welcome-file-list>
+</web-app>
+
+```
+```
+MstUser.hbm.xml
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE hibernate-mapping PUBLIC
+        "-//Hibernate/Hibernate Mapping DTD 3.0//EN"
+        "http://hibernate.sourceforge.net/hibernate-mapping-3.0.dtd">
+<hibernate-mapping>
+    <class name="fjs.cs.model.MstUser" table="MSTUSERS">
+        <id name="id" column="ID">
+            <generator class="native"/>
+        </id>
+        <property name="userID" column="USERID"/>
+        <property name="password" column="PASSWORD"/>
+        <property name="deleteYmd" column="DELETE_YMD"/>
+    </class>
+</hibernate-mapping>
+
+```
+```
+package fjs.cs.util;
+
+import org.hibernate.SessionFactory;
+import org.hibernate.cfg.Configuration;
+
+public class HibernateUtil {
+    private static final SessionFactory sessionFactory = buildSessionFactory();
+
+    private static SessionFactory buildSessionFactory() {
+        try {
+            // Tạo một phiên làm việc từ cấu hình hibernate.cfg.xml
+            return new Configuration().configure().buildSessionFactory();
+        } catch (Throwable ex) {
+            // Nếu không thể tạo phiên làm việc, ném ra ngoại lệ
+            System.err.println("Initial SessionFactory creation failed." + ex);
+            throw new ExceptionInInitializerError(ex);
+        }
+    }
+
+    public static SessionFactory getSessionFactory() {
+        return sessionFactory;
+    }
+}
+
+```
+```
+Struts_Spring_Hibernate/
+├── src/
+│   ├── fjs/
+│   │   ├── cs/
+│   │   │   ├── action/
+│   │   │   │   ├── loginAction.java
+│   │   │   ├── dao/
+│   │   │   │   ├── loginDao.java
+│   │   │   ├── dto/
+│   │   │   │   ├── loginDto.java
+│   │   │   ├── form/
+│   │   │   │   ├── loginForm.java
+│   │   │   ├── model/
+│   │   │   │   ├── MstUser.java
+│   │   │   ├── util/
+│   │   │   │   ├── HibernateUtil.java
+│   │   │   ├── db/
+│   │   │   │   ├── connectDB.java (bỏ nếu không cần)
+│   ├── resources/
+│   │   ├── hibernate.cfg.xml
+│   │   ├── applicationContext.xml (nếu bạn dùng Spring)
+├── WEB-INF/
+│   ├── struts-config.xml
+│   ├── web.xml
+│   ├── login.jsp
+│   ├── welcome.jsp
+└── ...
+```
+
+
+
+
+
+
+```
 package fjs.cs.action;
 
 import java.sql.SQLException;
