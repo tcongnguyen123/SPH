@@ -312,12 +312,12 @@ Struts_Spring_Hibernate/
 │   │   │   │   ├── loginDto.java
 │   │   │   ├── form/
 │   │   │   │   ├── loginForm.java
-│   │   │   ├── model/
-│   │   │   │   ├── MstUser.java
 │   │   │   ├── util/
 │   │   │   │   ├── HibernateUtil.java
 │   │   │   ├── db/
 │   │   │   │   ├── connectDB.java (bỏ nếu không cần)
+│   │   │   ├── hbm/
+│   │   │   │   ├── MstUser.hbm.xml
 │   ├── resources/
 │   │   ├── hibernate.cfg.xml
 │   │   ├── applicationContext.xml (nếu bạn dùng Spring)
@@ -326,7 +326,7 @@ Struts_Spring_Hibernate/
 │   ├── web.xml
 │   ├── login.jsp
 │   ├── welcome.jsp
-└── ...
+
 ```
 
 
