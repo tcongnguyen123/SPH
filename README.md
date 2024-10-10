@@ -1,4 +1,465 @@
 ```
+loginAction.java
+package fjs.cs.action;
+
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import org.apache.struts.action.Action;
+import org.apache.struts.action.ActionForm;
+import org.apache.struts.action.ActionForward;
+import org.apache.struts.action.ActionMapping;
+import org.apache.struts.action.ActionServlet;
+import org.springframework.web.context.WebApplicationContext;
+import org.springframework.web.context.support.WebApplicationContextUtils;
+import fjs.cs.dao.loginDao;
+import fjs.cs.form.loginForm;
+
+public class loginAction extends Action {
+
+    private loginDao loginDao;
+
+    @Override
+    public void setServlet(ActionServlet servlet) {
+        super.setServlet(servlet);
+        WebApplicationContext context = WebApplicationContextUtils.getRequiredWebApplicationContext(servlet.getServletContext());
+        this.loginDao = (loginDao) context.getBean("loginDao");
+    }
+
+    @Override
+    public ActionForward execute(ActionMapping mapping, ActionForm form,
+                                 HttpServletRequest request, HttpServletResponse response) {
+        loginForm loginForm = (loginForm) form;
+
+        // Lấy thông tin người dùng từ form
+        String userName = loginForm.getUserID();
+        String passWord = loginForm.getPassWord();
+
+        // Kiểm tra thông tin đăng nhập
+        int count = loginDao.checkLogin(userName, passWord);
+
+        if (count > 0) {
+            // Đăng nhập thành công
+            return mapping.findForward("success");
+        } else {
+            // Đăng nhập thất bại
+            request.setAttribute("errorMessage", "Invalid username or password.");
+            return mapping.findForward("failure");
+        }
+    }
+}
+```
+```
+loginDao
+package fjs.cs.dao;
+
+import java.util.List;
+
+import org.hibernate.Session;
+import org.hibernate.SessionFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Repository;
+
+
+public class loginDao {
+	
+
+	private SessionFactory sessionFactory;
+
+
+	public void setSessionFactory(SessionFactory sessionFactory) {
+	   this.sessionFactory = sessionFactory;
+	}
+
+    public int checkLogin(String userName, String passWord) {
+        Session session = sessionFactory.openSession();
+        System.out.println(userName);
+        String hql = "SELECT COUNT(*) FROM Login l WHERE l.deleteYMD IS NULL AND l.userID = :userID AND l.passWord = :passWord";
+        
+        Long count = (Long) session.createQuery(hql)
+                                  .setParameter("userID", userName)
+                                  .setParameter("passWord", passWord)
+                                  .uniqueResult();
+        session.close();
+        System.out.println(count.intValue());
+        return count.intValue();
+    }
+}
+```
+```
+loginForm.java
+package fjs.cs.form;
+
+import org.apache.struts.action.ActionForm;
+
+public class loginForm extends ActionForm {
+	/**
+	 * 
+	 */
+	private static final long serialVersionUID = 1L;
+	private String userID; 
+	private String passWord;
+	
+	public loginForm() {
+		super();
+	}
+
+	public String getUserID() {
+		return userID;
+	}
+
+	public void setUserID(String userID) {
+		this.userID = userID;
+	}
+
+	public String getPassWord() {
+		return passWord;
+	}
+
+	public void setPassWord(String passWord) {
+		this.passWord = passWord;
+	} 
+}
+
+```
+```
+Login.java (model)
+package fjs.cs.model;
+
+public class Login {
+	private int psn_cd; 
+	private String userID;
+	private String userName;
+	private String passWord;
+	private String deleteYMD;
+	public int getPsn_cd() {
+		return psn_cd;
+	}
+	public void setPsn_cd(int psn_cd) {
+		this.psn_cd = psn_cd;
+	}
+	public String getUserID() {
+		return userID;
+	}
+	public void setUserID(String userID) {
+		this.userID = userID;
+	}
+	public String getUserName() {
+		return userName;
+	}
+	public void setUserName(String userName) {
+		this.userName = userName;
+	}
+	public String getPassWord() {
+		return passWord;
+	}
+	public void setPassWord(String passWord) {
+		this.passWord = passWord;
+	}
+	public String getDeleteYMD() {
+		return deleteYMD;
+	}
+	public void setDeleteYMD(String deleteYMD) {
+		this.deleteYMD = deleteYMD;
+	}
+	
+	
+}
+```
+```
+Login.hbm.xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE hibernate-mapping PUBLIC 
+    "-//Hibernate/Hibernate Mapping DTD 3.0//EN"
+    "http://www.hibernate.org/dtd/hibernate-mapping-3.0.dtd">
+
+<hibernate-mapping>
+    <class name="fjs.cs.model.Login" table="MSTUSERS">
+        <id name="psn_cd" column="PSN_CD" type="int">
+        </id>
+        <property name="userID" column="USERID" type="string" length="50"/>
+        <property name="userName" column="USERNAME" type="string" length="100"/>
+        <property name="passWord" column="PASSWORD" type="string" length="100"/>
+        <property name="deleteYMD" column="DELETE_YMD" type="timestamp"/>
+    </class>
+</hibernate-mapping>
+```
+```
+hibernate.cfg.xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE hibernate-configuration PUBLIC
+        "-//Hibernate/Hibernate Configuration DTD 3.0//EN"
+        "http://www.hibernate.org/dtd/hibernate-configuration-3.0.dtd">
+<hibernate-configuration>
+    <session-factory>
+        <!-- Database connection settings -->
+        <property name="hibernate.connection.driver_class">com.mysql.jdbc.Driver</property>
+        <property name="hibernate.connection.url">jdbc:mysql://localhost:3306/CustomerSystem</property>
+        <property name="hibernate.connection.username">root</property>
+        <property name="hibernate.connection.password">0973129264a</property>
+
+        <!-- JDBC connection pool settings -->
+        <property name="hibernate.c3p0.min_size">5</property>
+        <property name="hibernate.c3p0.max_size">20</property>
+        <property name="hibernate.c3p0.timeout">300</property>
+        <property name="hibernate.c3p0.max_statements">50</property>
+        <property name="hibernate.c3p0.idle_test_period">3000</property>
+
+        <!-- Specify dialect -->
+        <property name="hibernate.dialect">org.hibernate.dialect.MySQLDialect</property>
+
+        <!-- Echo all executed SQL to stdout -->
+        <property name="hibernate.show_sql">true</property>
+
+        <!-- Drop and re-create the database schema on startup -->
+        <property name="hibernate.hbm2ddl.auto">update</property>
+
+        <!-- Names the annotated entity class -->
+        <mapping resource="fjs/cs/model/Login.hbm.xml"/>
+    </session-factory>
+</hibernate-configuration>
+```
+```
+login.jsp
+<%@ taglib uri="http://java.sun.com/jsp/jstl/core" prefix="c" %> 
+<%@ taglib uri="http://struts.apache.org/tags-html" prefix="html" %>
+<%@ taglib uri="/WEB-INF/struts-bean.tld" prefix="bean" %>
+<%@ page language="java" contentType="text/html; charset=UTF-8" pageEncoding="UTF-8"%>
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style type="text/css">
+	body {
+		margin-left :20px;
+		margin-right : 20px;
+		background-color : #87CEFA;	
+	}
+	.header {
+		color : red;
+		border-bottom : 2px solid;
+		
+	}
+    .login-container {
+        display: flex;
+        justify-content: center;
+    }
+
+    .login-form {
+        display: flex;
+        flex-direction: column;
+        padding: 20px;
+        border-radius: 10px;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        width: 300px; /* Set a width for the form */
+    }
+
+    .form-title {
+        font-size: 24px;
+        margin-bottom: 20px;
+        text-align: center;
+        color : blue;
+    }
+
+    .form-group {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 15px;
+    }
+
+    .form-group label {
+        margin-right: 10px;
+        width: 80px; /* Set a fixed width for labels */
+    }
+
+    .form-group input {
+        width: 70%;
+        padding: 5px;
+        border: 1px solid #ccc;
+        border-radius: 2px;
+    }
+
+    .login-form input[type="submit"],
+    .login-form input[type="button"] {
+        width: 120px;
+        margin: 5px;
+        cursor: pointer;
+    }
+	
+    #errorMessageDiv {
+        margin-bottom: 15px;
+        color: red;
+        text-align: center;
+        min-height: 20px; /* de form khong bi day xuong khi hien ra  */
+    }
+    .btnDiv {
+        display: flex;
+        justify-content: center;
+    }
+</style>
+<title>Login</title>
+</head>
+<body>
+	<div class= header>
+		<h1>TRAINING</h1>
+	</div>				
+	<div class="container">
+		<div class="login-container">
+		    <div class="login-form">
+		        <div class="form-title">Login</div> 
+		        <div id="errorMessageDiv">
+		            <html:errors />
+		        </div>
+		        <html:form action="/login" method="post">
+		            <div class="form-group">
+		                <label for="username">Username:</label>
+		                <html:text property="userID" />
+		            </div>
+		            <div class="form-group">
+		                <label for="passWord">Password:</label>
+		                <html:password property="passWord" />
+		            </div>
+		            <div class= "btnDiv">
+		            	<html:submit value= "Login" property= "action"/>
+		            	<html:submit value="Clear" property="action" onclick="clearForm()" />
+		            </div>
+		        </html:form>
+		    </div>
+		</div>
+	</div>
+</body>
+</html>
+```
+```
+applicationContext
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans
+           http://www.springframework.org/schema/beans/spring-beans.xsd">
+
+    <!-- Cấu hình datasource kết nối MySQL -->
+    <bean id="dataSource" class="org.springframework.jdbc.datasource.DriverManagerDataSource">
+        <property name="driverClassName" value="com.mysql.cj.jdbc.Driver" />
+        <property name="url" value="jdbc:mysql://localhost:3306/Customersystem"/>
+        <property name="username" value="root" />
+        <property name="password" value="0973129264a" />
+    </bean>
+
+    <bean id="sessionFactory"
+        class="org.springframework.orm.hibernate3.LocalSessionFactoryBean">
+        <property name="dataSource" ref="dataSource" />
+        <property name="configLocation" value="classpath:hibernate.cfg.xml" />
+    </bean>
+    <bean id="loginDao" class="fjs.cs.dao.loginDao">
+    	<property name="sessionFactory" ref="sessionFactory"/>
+	</bean>
+
+    
+</beans>
+```
+```
+struts-config
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE struts-config PUBLIC
+    "-//Apache Software Foundation//DTD Struts Configuration 1.3//EN"
+    "dtd/struts-config_1_3.dtd">
+
+<struts-config>
+	<form-beans>
+	    <form-bean name="loginForm" type="fjs.cs.form.loginForm"/>
+	</form-beans>
+	
+	<action-mappings>
+	    <action path="/login"
+	            type="fjs.cs.action.loginAction"
+	            name="loginForm"
+	            scope="request"
+	            validate="true">
+	        <forward name="success" path="/search.do" redirect="true"/>
+	        <forward name="failure" path="/jsp/login.jsp" />
+	    </action>
+	    
+	</action-mappings>
+	<message-resources parameter="message" />
+</struts-config>
+```
+```
+web.xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE web-app PUBLIC 
+    "-//Sun Microsystems, Inc.//DTD Web Application 2.3//EN" 
+    "http://java.sun.com/dtd/web-app_2_3.dtd">
+
+<web-app>
+    <display-name>HelloStruts1x</display-name>
+
+    <!-- Spring Context Configuration -->
+    <context-param>
+        <param-name>contextConfigLocation</param-name>
+        <param-value>/WEB-INF/spring/applicationContext.xml</param-value>
+    </context-param>
+    
+    <!-- Spring Context Loader Listener -->
+    <listener>
+        <listener-class>org.springframework.web.context.ContextLoaderListener</listener-class>
+    </listener>
+
+    <!-- Struts Action Servlet -->
+    <servlet>
+        <servlet-name>action</servlet-name>
+        <servlet-class>org.apache.struts.action.ActionServlet</servlet-class>
+        <init-param>
+            <param-name>config</param-name>
+            <param-value>/WEB-INF/struts-config.xml</param-value>
+        </init-param>
+        <load-on-startup>2</load-on-startup>
+    </servlet>
+
+    <servlet-mapping>
+        <servlet-name>action</servlet-name>
+        <url-pattern>*.do</url-pattern>
+    </servlet-mapping>
+    
+    <welcome-file-list>
+        <welcome-file>index.jsp</welcome-file>
+    </welcome-file-list>
+</web-app>
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+```
 hibernate.cfg.xml
 Đây là tệp cấu hình Hibernate để kết nối với SQL Server.
 <?xml version="1.0" encoding="utf-8"?>
