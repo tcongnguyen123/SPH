@@ -1,3 +1,747 @@
+```
+ai
+package fjs.cs.logic;
+
+import java.util.List;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import fjs.cs.dao.SearchDao;
+import fjs.cs.dto.CustomerDto;
+
+@Service
+public class searchLogic {
+
+    @Autowired
+    private SearchDao searchDao;
+
+    public List<CustomerDto> searchCustomers(String customerName, String sex, String fromBirthday, String toBirthday, int pageSize, int currentPage) {
+        List<CustomerDto> allCustomers = searchDao.searchCustomers(customerName, sex, fromBirthday, toBirthday);
+
+        // Logic phân trang
+        int startRow = (currentPage - 1) * pageSize;
+        int totalCustomers = allCustomers.size();
+        int totalPages = (int) Math.ceil((double) totalCustomers / pageSize);
+
+        List<CustomerDto> paginatedList = allCustomers.subList(
+            Math.min(startRow, totalCustomers),
+            Math.min(startRow + pageSize, totalCustomers)
+        );
+
+        // Set additional attributes if needed
+        // paginatedList.setTotalPages(totalPages);
+
+        return paginatedList;
+    }
+}
+
+ai
+```
+```
+delete
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import org.hibernate.Session;
+import org.hibernate.Transaction;
+import org.hibernate.Query;
+
+public class CustomerDao {
+    
+    private SessionFactory sessionFactory;
+
+    public void deleteCustomer(int customerID) {
+        Transaction transaction = null;
+        Session session = sessionFactory.openSession();
+        
+        try {
+            // Bắt đầu transaction
+            transaction = session.beginTransaction();
+
+            // Lấy thời gian hiện tại
+            SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
+            String currentDate = sdf.format(new Date());
+
+            // Tạo câu lệnh HQL để cập nhật delete_ymd
+            String hql = "UPDATE Customer SET delete_ymd = :delete_ymd WHERE customerID = :customerID";
+            Query query = session.createQuery(hql);
+            query.setParameter("delete_ymd", currentDate);
+            query.setParameter("customerID", customerID);
+
+            // Thực thi câu lệnh HQL
+            int result = query.executeUpdate();
+
+            // Commit transaction nếu không có lỗi
+            transaction.commit();
+        } catch (Exception e) {
+            if (transaction != null) {
+                transaction.rollback();
+            }
+            e.printStackTrace();
+        } finally {
+            session.close();
+        }
+    }
+}
+
+```
+```
+add 
+import org.hibernate.Session;
+import org.hibernate.Transaction;
+
+public class CustomerDao {
+    
+    private SessionFactory sessionFactory;
+
+    public void addCustomer(CustomerDto customerDto) {
+        Transaction transaction = null;
+        Session session = sessionFactory.openSession();
+        
+        try {
+            // Bắt đầu transaction
+            transaction = session.beginTransaction();
+            
+            // Tạo đối tượng Customer từ CustomerDto
+            Customer customer = new Customer();
+            customer.setCustomerID(customerDto.getCustomerID());   // Nếu customerID là tự động thì bỏ qua dòng này
+            customer.setCustomerName(customerDto.getCustomerName());
+            customer.setSex(customerDto.getSex());
+            customer.setBirthday(customerDto.getBirthday());
+            customer.setAddress(customerDto.getAddress());
+            customer.setDeleteYmd(null);  // Ban đầu giá trị delete_ymd là null
+            
+            // Lưu đối tượng vào cơ sở dữ liệu
+            session.save(customer);
+
+            // Commit transaction nếu không có lỗi
+            transaction.commit();
+        } catch (Exception e) {
+            if (transaction != null) {
+                transaction.rollback();
+            }
+            e.printStackTrace();
+        } finally {
+            session.close();
+        }
+    }
+}
+
+```
+```
+edit 
+import org.hibernate.Session;
+import org.hibernate.Transaction;
+
+public class CustomerDao {
+
+    private SessionFactory sessionFactory;
+
+    public void editCustomer(CustomerDto customerDto) {
+        Transaction transaction = null;
+        Session session = sessionFactory.openSession();
+        
+        try {
+            // Bắt đầu transaction
+            transaction = session.beginTransaction();
+
+            // Truy xuất khách hàng từ database dựa trên customerID
+            Customer customer = (Customer) session.get(Customer.class, customerDto.getCustomerID());
+            
+            // Kiểm tra nếu khách hàng tồn tại
+            if (customer != null) {
+                // Cập nhật thông tin từ customerDto
+                customer.setCustomerName(customerDto.getCustomerName());
+                customer.setSex(customerDto.getSex());
+                customer.setBirthday(customerDto.getBirthday());
+                customer.setAddress(customerDto.getAddress());
+                // Không chỉnh sửa delete_ymd vì chỉ được thay đổi khi xóa
+                
+                // Cập nhật đối tượng trong database
+                session.update(customer);
+
+                // Commit transaction sau khi cập nhật
+                transaction.commit();
+            } else {
+                System.out.println("Customer with ID " + customerDto.getCustomerID() + " not found.");
+            }
+        } catch (Exception e) {
+            if (transaction != null) {
+                transaction.rollback();
+            }
+            e.printStackTrace();
+        } finally {
+            session.close();
+        }
+    }
+}
+
+```
+```
+import org.hibernate.Session;
+import org.hibernate.Transaction;
+import java.util.List;
+
+public class CustomerDao {
+
+    private SessionFactory sessionFactory;
+
+    @SuppressWarnings("unchecked")
+    public List<Object[]> getAllCustomerNamesAndAddresses() {
+        Transaction transaction = null;
+        List<Object[]> customerList = null;
+        Session session = sessionFactory.openSession();
+        
+        try {
+            // Bắt đầu transaction
+            transaction = session.beginTransaction();
+
+            // Viết câu HQL để lấy customerName và address
+            String hql = "SELECT c.customerName, c.address FROM Customer c WHERE c.delete_ymd IS NULL";
+            Query query = session.createQuery(hql);
+            
+            // Thực thi query và lấy danh sách kết quả
+            customerList = query.list();
+            
+            // Commit transaction
+            transaction.commit();
+        } catch (Exception e) {
+            if (transaction != null) {
+                transaction.rollback();
+            }
+            e.printStackTrace();
+        } finally {
+            session.close();
+        }
+        
+        return customerList;
+    }
+}
+
+```
+
+```
+begin
+package fjs.cs.action;
+
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.List;
+
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import javax.servlet.http.HttpSession;
+
+import org.apache.struts.action.Action;
+import org.apache.struts.action.ActionForm;
+import org.apache.struts.action.ActionForward;
+import org.apache.struts.action.ActionMapping;
+import org.apache.struts.action.ActionMessage;
+import org.apache.struts.action.ActionMessages;
+
+import fjs.cs.dao.SearchDao;
+import fjs.cs.dto.CustomerDto;
+import fjs.cs.form.SearchForm;
+
+public class SearchAction extends Action {
+    
+    private SearchDao searchDao;
+	
+    public void setSearchDao(SearchDao searchDao) {
+        this.searchDao = searchDao;
+    }
+//    private SearchLogic searchLogic;
+//	
+//    public void setSearchLogic(SearchLogic searchLogic) {
+//        this.searchLogic = searchLogic;
+//    }
+	public ActionForward execute(ActionMapping mapping, ActionForm form,
+            HttpServletRequest request, HttpServletResponse response) {
+    	HttpSession session = request.getSession();
+    	SearchForm searchForm = (SearchForm) form;
+    	String customerName = searchForm.getCustomerName();
+        String sex = searchForm.getSex();
+        String fromBirthday = searchForm.getBirthdayFrom();
+        String toBirthday = searchForm.getBirthdayTo();
+        ActionMessages errors = new ActionMessages();
+        
+        String action = request.getParameter("action");
+    	List<CustomerDto> customerList;
+    	if ("Search".equals(action)) {
+    	    // Kiểm tra định dạng YYYY/MM/DD của birthdayFrom và birthdayTo
+    	    String datePattern = "^\\d{4}/\\d{2}/\\d{2}$";  // Regex kiểm tra định dạng YYYY/MM/DD}
+    	    
+    	    // Không có lỗi, thực hiện tìm kiếm
+    	    customerList = searchDao.searchCustomers(customerName, sex, fromBirthday, toBirthday);
+    	    
+    	    // Logic phân trang...
+    	    int PAGE_SIZE = 2;
+    	    String pageStr = request.getParameter("page");
+    	    Integer currentPage = 1;
+    	    if (pageStr != null) {
+    	        currentPage = Integer.parseInt(pageStr);
+    	    }
+    	    if (currentPage == null || currentPage < 1) {
+    	        currentPage = 1;
+    	    }
+    	    int startRow = (currentPage - 1) * PAGE_SIZE;
+    	    int totalCustomers = customerList.size();
+    	    int totalPages = (int) Math.ceil((double) totalCustomers / PAGE_SIZE);
+    	    
+    	    List<CustomerDto> paginatedList = customerList.subList(
+    	        Math.min(startRow, totalCustomers),
+    	        Math.min(startRow + PAGE_SIZE, totalCustomers)
+    	    );
+    	    
+    	    // Lưu thông tin tìm kiếm vào session
+    	    session.setAttribute("customerName", customerName);
+    	    session.setAttribute("sex", sex);
+    	    session.setAttribute("fromBirthday", fromBirthday);
+    	    session.setAttribute("toBirthday", toBirthday);
+    	    
+    	    session.setAttribute("customerList", paginatedList);
+    	    session.setAttribute("currentPage", currentPage);
+    	    session.setAttribute("totalPages", totalPages);
+    	    
+    	    return mapping.findForward("search");
+    	}
+
+
+        if (customerName != null || sex != null || fromBirthday != null || toBirthday != null) {
+            customerList = searchDao.searchCustomers(customerName, sex, fromBirthday, toBirthday);
+        } else {	
+            customerList = searchDao.getAllCustomers();
+        }
+        int PAGE_SIZE = 2;
+        String pageStr = request.getParameter("page");
+        Integer currentPage = (Integer) session.getAttribute("currentPage");
+        if (pageStr != null) {
+            currentPage = Integer.parseInt(pageStr);
+        }
+        if (currentPage == null || currentPage < 1 ) {
+            currentPage = 1;
+        }
+        int startRow = (currentPage - 1) * PAGE_SIZE;
+        int totalCustomers = customerList.size();
+        int totalPages = (int) Math.ceil((double) totalCustomers / PAGE_SIZE);
+        List<CustomerDto> paginatedList = customerList.subList(
+                Math.min(startRow, totalCustomers),
+                Math.min(startRow + PAGE_SIZE, totalCustomers)
+        );
+        session.setAttribute("customerName", customerName);
+        session.setAttribute("sex", sex);
+        session.setAttribute("fromBirthday", fromBirthday);
+        session.setAttribute("toBirthday", toBirthday);
+        session.setAttribute("customerList", paginatedList);
+        session.setAttribute("currentPage", currentPage);
+        session.setAttribute("totalPages", totalPages);
+    	return mapping.findForward("search");
+    }
+}
+
+```
+```
+SEARCHDAO
+package fjs.cs.dao;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import org.hibernate.Criteria;
+import org.hibernate.Query;
+import org.hibernate.Session;
+import org.hibernate.SessionFactory;
+import org.hibernate.Transaction;
+
+import fjs.cs.dto.CustomerDto;
+import fjs.cs.model.Customer;
+
+public class SearchDao {
+	
+	private SessionFactory sessionFactory;
+
+
+	public void setSessionFactory(SessionFactory sessionFactory) {
+	   this.sessionFactory = sessionFactory;
+	}
+	@SuppressWarnings("unchecked")
+	public List<CustomerDto> getAllCustomers() {
+	    Session session = sessionFactory.openSession();
+	    String hql = "SELECT c.customerID, c.customerName, c.sex, c.birthday, c.address FROM Customer c WHERE c.delete_ymd IS NULL";
+	    List<Object[]> results = session.createQuery(hql).list();
+	    session.close();
+	
+	    List<CustomerDto> customers = new ArrayList<>();
+	    for (Object[] row : results) {
+	        CustomerDto dto = new CustomerDto();
+	        dto.setCustomerID((int) row[0]);
+	        dto.setCustomerName((String) row[1]);
+	        dto.setSex((String) row[2]);
+	        dto.setBirthday((String) row[3]);
+	        dto.setAddress((String) row[4]);
+	        customers.add(dto);
+	    }
+	
+	    return customers;
+	}		
+//	@SuppressWarnings("unchecked")
+//	public List<CustomerDto> getAllCustomers() {
+//    	Transaction transaction = null;
+//    	List<CustomerDto> customer = new ArrayList<>();
+//        Session session = sessionFactory.openSession();
+//        transaction = session.beginTransaction();
+//        String hql = "SELECT new fjs.cs.dto.CustomerDto(c.customerID, c.customerName, c.sex, c.birthday, c.address) " +
+//                "FROM Customer c WHERE c.delete_ymd IS NULL";
+//        Query query = session.createQuery(hql);
+//        customer  = query.list();
+//        transaction.commit();
+//        return customer;
+//    }
+
+	@SuppressWarnings("unchecked")
+	public List<CustomerDto> searchCustomers(String customerName, String sex, String birthdayFrom, String birthdayTo) {
+
+	    Session session = sessionFactory.openSession();
+	    
+	    try {
+	        // Tạo câu truy vấn HQL
+	        StringBuilder hql = new StringBuilder("SELECT c.customerID, c.customerName, c.sex, c.birthday, c.address FROM Customer c WHERE c.delete_ymd IS NULL");
+	        List<Object> params = new ArrayList<>();
+
+	        // Thêm điều kiện tìm kiếm
+	        if (customerName != null && !customerName.trim().isEmpty()) {
+	            hql.append(" AND c.customerName LIKE ?");
+	            params.add("%" + customerName + "%");
+	        }
+	        
+	        if (sex != null && !sex.trim().isEmpty()) {
+	            hql.append(" AND c.sex = ?");
+	            params.add(sex);
+	        }
+	        
+	        if (birthdayFrom != null && !birthdayFrom.trim().isEmpty()) {
+	            hql.append(" AND c.birthday >= ?");
+	            params.add(birthdayFrom);
+	        }
+	        
+	        if (birthdayTo != null && !birthdayTo.trim().isEmpty()) {
+	            hql.append(" AND c.birthday <= ?");
+	            params.add(birthdayTo);
+	        }
+
+	        // Thực thi query
+	        Query query = session.createQuery(hql.toString());
+	        for (int i = 0; i < params.size(); i++) {
+	            query.setParameter(i, params.get(i));
+	        }
+
+	        // Lấy danh sách kết quả trả về
+	        List<Object[]> results = query.list();  // Kết quả là danh sách Object[]
+	        List<CustomerDto> customerDtos = new ArrayList<>();
+
+	        // Xử lý kết quả trả về
+	        for (Object[] row : results) {
+	            CustomerDto dto = new CustomerDto(
+	                (Integer) row[0],   // customerID
+	                (String) row[1],    // customerName
+	                (String) row[2],    // sex
+	                (String) row[3],    // birthday
+	                (String) row[4]     // address
+	            );
+	            customerDtos.add(dto);
+	        }
+	        
+	        return customerDtos;
+	    } finally {
+	        session.close();
+	    }
+	}		
+}
+
+```
+```
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE hibernate-mapping PUBLIC 
+    "-//Hibernate/Hibernate Mapping DTD 3.0//EN"
+    "http://www.hibernate.org/dtd/hibernate-mapping-3.0.dtd">
+<hibernate-mapping>
+	<class name="fjs.cs.model.Customer" table="MSTCUSTOMERS">
+	    <id name="customerID" column="CUSTOMERID" type="int">
+	    <generator class="native"/>
+	    </id>
+		<property name="customerName" column="CUSTOMERNAME" type="string" length="50"/>
+		<property name="sex" column="SEX" type="string" length="50"/>
+		<property name="birthday" column="BIRTHDAY" type="string" length="50"/>
+		<property name="address" column="ADDRESS" type="string" length="50"/>
+		<property name="email" column="EMAIL" type="string" length="50"/>
+		<property name="insert_psn" column="INSERT_PSN" type="int" length="50"/>
+		<property name="update_psn" column="UPDATE_PSN" type="int" length="50"/>
+		<property name="delete_ymd" column="DELETE_YMD" type="timestamp" />
+		<property name="insert_ymd" column="INSERT_YMD" type="timestamp" />
+		<property name="update_ymd" column="UPDATE_YMD" type="timestamp" />
+	</class>
+</hibernate-mapping>
+```
+```
+package fjs.cs.model;
+
+import java.sql.Date;
+
+public class Customer {
+	private int customerID;
+	private String customerName;
+	private String sex;
+	private String birthday;
+	private String address;
+	private String email;
+	private int insert_psn;
+	private int update_psn;
+	private Date delete_ymd;
+	private Date insert_ymd;
+	private Date update_ymd;
+	
+	public Customer() {
+		super();
+	}
+	public Customer(int customerID, String customerName, String sex, String birthday, String address) {
+		super();
+		this.customerID = customerID;
+		this.customerName = customerName;
+		this.sex = sex;
+		this.birthday = birthday;
+		this.address = address;
+	}
+	public int getCustomerID() {
+		return customerID;
+	}
+	public void setCustomerID(int customerID) {
+		this.customerID = customerID;
+	}
+	public String getCustomerName() {
+		return customerName;
+	}
+	public void setCustomerName(String customerName) {
+		this.customerName = customerName;
+	}
+	public String getSex() {
+		return sex;
+	}
+	public void setSex(String sex) {
+		this.sex = sex;
+	}
+	public String getBirthday() {
+		return birthday;
+	}
+	public void setBirthday(String birthday) {
+		this.birthday = birthday;
+	}
+	public String getAddress() {
+		return address;
+	}
+	public void setAddress(String address) {
+		this.address = address;
+	}
+	public String getEmail() {
+		return email;
+	}
+	public void setEmail(String email) {
+		this.email = email;
+	}
+	public int getInsert_psn() {
+		return insert_psn;
+	}
+	public void setInsert_psn(int insert_psn) {
+		this.insert_psn = insert_psn;
+	}
+	public int getUpdate_psn() {
+		return update_psn;
+	}
+	public void setUpdate_psn(int update_psn) {
+		this.update_psn = update_psn;
+	}
+	public Date getDelete_ymd() {
+		return delete_ymd;
+	}
+	public void setDelete_ymd(Date delete_ymd) {
+		this.delete_ymd = delete_ymd;
+	}
+	public Date getInsert_ymd() {
+		return insert_ymd;
+	}
+	public void setInsert_ymd(Date insert_ymd) {
+		this.insert_ymd = insert_ymd;
+	}
+	public Date getUpdate_ymd() {
+		return update_ymd;
+	}
+	public void setUpdate_ymd(Date update_ymd) {
+		this.update_ymd = update_ymd;
+	}
+	
+	
+}
+
+```
+```
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE hibernate-configuration PUBLIC
+        "-//Hibernate/Hibernate Configuration DTD 3.0//EN"
+        "http://www.hibernate.org/dtd/hibernate-configuration-3.0.dtd">
+<hibernate-configuration>
+    <session-factory>
+        <!-- Database connection settings -->
+        <property name="hibernate.connection.driver_class">com.mysql.jdbc.Driver</property>
+        <property name="hibernate.connection.url">jdbc:mysql://localhost:3306/CustomerSystem</property>
+        <property name="hibernate.connection.username">root</property>
+        <property name="hibernate.connection.password">0973129264a</property>
+
+        <!-- JDBC connection pool settings -->
+        <property name="hibernate.c3p0.min_size">5</property>
+        <property name="hibernate.c3p0.max_size">20</property>
+        <property name="hibernate.c3p0.timeout">300</property>
+        <property name="hibernate.c3p0.max_statements">50</property>
+        <property name="hibernate.c3p0.idle_test_period">3000</property>
+
+        <!-- Specify dialect -->
+        <property name="hibernate.dialect">org.hibernate.dialect.MySQLDialect</property>
+
+        <!-- Echo all executed SQL to stdout -->
+        <property name="hibernate.show_sql">true</property>
+
+        <!-- Drop and re-create the database schema on startup -->
+        <property name="hibernate.hbm2ddl.auto">update</property>
+
+        <!-- Names the annotated entity class -->
+        <mapping resource="fjs/cs/model/Login.hbm.xml"/>
+        <mapping resource="fjs/cs/model/Customer.hbm.xml"/>
+    </session-factory>
+</hibernate-configuration>
+```
+```
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans
+           http://www.springframework.org/schema/beans/spring-beans.xsd">
+
+    <!-- Cấu hình datasource kết nối MySQL -->
+    <bean id="dataSource" class="org.springframework.jdbc.datasource.DriverManagerDataSource">
+        <property name="driverClassName" value="com.mysql.cj.jdbc.Driver" />
+        <property name="url" value="jdbc:mysql://localhost:3306/Customersystem"/>
+        <property name="username" value="root" />
+        <property name="password" value="0973129264a" />
+    </bean>
+
+    <bean id="sessionFactory"
+        class="org.springframework.orm.hibernate3.LocalSessionFactoryBean">
+        <property name="dataSource" ref="dataSource" />
+        <property name="configLocation" value="classpath:hibernate.cfg.xml" />
+    </bean>
+    <bean id="transactionManager" class="org.springframework.orm.hibernate3.HibernateTransactionManager">
+    	<property name="sessionFactory" ref="sessionFactory" />
+	</bean>
+    
+    <bean id="loginDao" class="fjs.cs.dao.loginDao">
+    	<property name="sessionFactory" ref="sessionFactory"/>
+	</bean>
+	<bean id="loginLogic" class="fjs.cs.logic.loginLogic">
+    	<property name="loginDao" ref="loginDao"/>
+	</bean>
+	<bean name= "/login" id="loginAction" class="fjs.cs.action.loginAction">
+	    <property name="loginLogic" ref="loginLogic"/>
+	</bean>
+	<bean id="searchDao" class="fjs.cs.dao.SearchDao">
+    	<property name="sessionFactory" ref="sessionFactory"/>
+	</bean>
+	<bean id="searchLogic" class="fjs.cs.logic.SearchLogic">
+    	<property name="searchDao" ref="searchDao"/>
+	</bean>
+	<bean name= "/search" id="SearchAction" class="fjs.cs.action.SearchAction">
+		<property name="searchLogic" ref="searchLogic"/>
+	</bean>
+	
+    
+</beans>
+
+```
+```
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE struts-config PUBLIC
+    "-//Apache Software Foundation//DTD Struts Configuration 1.3//EN"
+    "dtd/struts-config_1_3.dtd">
+
+<struts-config>
+	<form-beans>
+	    <form-bean name="loginForm" type="fjs.cs.form.loginForm"/>
+	    <form-bean name="searchForm" type="fjs.cs.form.SearchForm"/>
+	</form-beans>
+	
+	<action-mappings>
+	    <action path="/login"
+	            type="org.springframework.web.struts.DelegatingActionProxy"
+	            name="loginForm"
+	            scope="request"
+	            validate="false">
+	      <forward name="success" path="/search.do" redirect="true"/>
+	      <forward name="failure" path="/jsp/login.jsp" />
+	    </action>
+	    <action path="/search"
+	            type="org.springframework.web.struts.DelegatingActionProxy"
+	            name="searchForm"
+	            scope="request"
+	            validate="true">
+	        <forward name="search" path="/jsp/Search.jsp" />
+	        <forward name="login" path="/login.do" redirect="true"/>
+	    </action>
+	    
+	</action-mappings>
+	<controller processorClass="org.springframework.web.struts.DelegatingRequestProcessor"/>
+	<message-resources parameter="message" />
+</struts-config>
+
+```
+```
+<?xml version="1.0" encoding="UTF-8"?>
+<web-app xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://xmlns.jcp.org/xml/ns/javaee" xsi:schemaLocation="http://xmlns.jcp.org/xml/ns/javaee http://xmlns.jcp.org/xml/ns/javaee/web-app_4_0.xsd" id="WebApp_ID" version="4.0">
+  	<display-name>CustomerSystem_Struts</display-name>
+	<context-param>
+	    <param-name>javax.servlet.jsp.jstl.fmt.encoding</param-name>
+	    <param-value>UTF-8</param-value>
+	</context-param>
+	    <!-- Spring Context Configuration -->
+    <context-param>
+        <param-name>contextConfigLocation</param-name>
+        <param-value>/WEB-INF/spring/applicationContext.xml</param-value>
+    </context-param>
+    
+    <!-- Spring Context Loader Listener -->
+    <listener>
+        <listener-class>org.springframework.web.context.ContextLoaderListener</listener-class>
+    </listener>
+
+	<welcome-file-list>
+	    <welcome-file>index.jsp</welcome-file> <!-- Đặt trang login.do làm welcome file -->
+	</welcome-file-list>
+
+    <servlet>
+        <servlet-name>action</servlet-name>
+        <servlet-class>org.apache.struts.action.ActionServlet</servlet-class>
+        <init-param>
+            <param-name>config</param-name>
+            <param-value>/WEB-INF/struts-config.xml</param-value>
+        </init-param>
+        <load-on-startup>2</load-on-startup>
+    </servlet>
+
+    <servlet-mapping>
+        <servlet-name>action</servlet-name>
+        <url-pattern>*.do</url-pattern>
+    </servlet-mapping>
+</web-app>
+```
+
+DAY 5 --------------------------------------------
+
+
 https://drive.google.com/drive/folders/1GCwNOsEnXPaDy0JoxNVx5eWhrDPhAVsL?usp=sharing
 SQL SERVER
 ```
