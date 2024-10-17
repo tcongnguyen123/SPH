@@ -1,4 +1,306 @@
 ```
+package fjs.cs.action;
+
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.List;
+
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import javax.servlet.http.HttpSession;
+
+import org.apache.struts.action.Action;
+import org.apache.struts.action.ActionForm;
+import org.apache.struts.action.ActionForward;
+import org.apache.struts.action.ActionMapping;
+import org.apache.struts.action.ActionMessage;
+import org.apache.struts.action.ActionMessages;
+
+import fjs.cs.dao.SearchDao;
+import fjs.cs.dto.CustomerDto;
+import fjs.cs.form.SearchForm;
+
+public class SearchAction extends Action {
+    
+    private SearchDao searchDao;
+	
+    public void setSearchDao(SearchDao searchDao) {
+        this.searchDao = searchDao;
+    }
+//    private SearchLogic searchLogic;
+//	
+//    public void setSearchLogic(SearchLogic searchLogic) {
+//        this.searchLogic = searchLogic;
+//    }
+	public ActionForward execute(ActionMapping mapping, ActionForm form,
+            HttpServletRequest request, HttpServletResponse response) {
+    	HttpSession session = request.getSession();
+    	SearchForm searchForm = (SearchForm) form;
+    	String customerName = searchForm.getCustomerName();
+        String sex = searchForm.getSex();
+        String fromBirthday = searchForm.getBirthdayFrom();
+        String toBirthday = searchForm.getBirthdayTo();
+        ActionMessages errors = new ActionMessages();
+        
+        String action = request.getParameter("action");
+    	List<CustomerDto> customerList;
+//    	if ("export".equals(action)) {
+//    	    customerList = searchDao.searchCustomers(customerName, sex, fromBirthday, toBirthday);
+//    	    
+//    	    // Tạo file CSV
+//    	    StringBuilder csvData = new StringBuilder();
+//    	    
+//    	    // Tiêu đề của các cột
+//    	    csvData.append("\"Customer ID\",\"Name\",\"Sex\",\"Birthday\",\"Address\",\"Email\"\n");
+//    	    
+//    	    // Thêm dữ liệu khách hàng vào CSV, với các giá trị được bao quanh bởi dấu ngoặc kép
+//    	    for (CustomerDto customer : customerList) {
+//    	        csvData.append("\"").append(customer.getCustomerID()).append("\"").append(",")
+//    	               .append("\"").append(customer.getCustomerName()).append("\"").append(",")
+//    	               .append("\"").append(customer.getSex() == "0" ? "Female" : "Male").append("\"").append(",")
+//    	               .append("\"").append(customer.getBirthday()).append("\"").append(",")
+//    	               .append("\"").append(customer.getAddress()).append("\"").append(",")
+//    	               .append("\"").append(customer.getEmail()).append("\"").append("\n");
+//    	    }
+//    	    
+//    	    // Đường dẫn đến nơi lưu file CSV
+//    	    String filePath = "C:/Users/ASUS/Desktop/Data/customer_export.csv";
+//    	    
+//    	    try {
+//    	        // Ghi dữ liệu CSV vào file trên ổ đĩa
+//    	        java.nio.file.Files.write(java.nio.file.Paths.get(filePath), csvData.toString().getBytes());
+//    	        System.out.println("File exported successfully to " + filePath);
+//    	    } catch (Exception e) {
+//    	        e.printStackTrace();
+//    	    }
+//    	    
+//    	    // Chuyển hướng hoặc thông báo thành công (có thể thêm redirect hoặc thông báo trong giao diện)
+//    	    return mapping.findForward("search");
+//    	}
+    	if ("export".equals(action)) {
+    	    customerList = searchDao.searchCustomers(customerName, sex, fromBirthday, toBirthday);
+    	    
+    	    // Tạo file CSV
+    	    StringBuilder csvData = new StringBuilder();
+    	    
+    	    // Tiêu đề của các cột
+    	    csvData.append("\"Customer ID\",\"Name\",\"Sex\",\"Birthday\",\"Address\",\"Email\"\n");
+    	    
+    	    // Thêm dữ liệu khách hàng vào CSV
+    	    for (CustomerDto customer : customerList) {
+    	        csvData.append("\"").append(customer.getCustomerID()).append("\",")
+    	               .append("\"").append(customer.getCustomerName()).append("\",")
+    	               .append("\"").append(customer.getSex() == "0" ? "Female" : "Male").append("\",")
+    	               .append("\"").append(customer.getBirthday()).append("\",")
+    	               .append("\"").append(customer.getAddress()).append("\",")
+    	               .append("\"").append(customer.getEmail()).append("\"\n");
+    	    }
+    	    
+    	    // Đường dẫn đến nơi lưu file CSV
+    	    String filePath = "C:/Users/ASUS/Desktop/Data/customer_export.csv";
+    	    
+    	    try {
+    	        // Ghi dữ liệu CSV vào file trên ổ đĩa
+    	        java.nio.file.Files.write(java.nio.file.Paths.get(filePath), csvData.toString().getBytes());
+    	        System.out.println("File exported successfully to " + filePath);
+    	    } catch (Exception e) {
+    	        e.printStackTrace();
+    	    }
+    	    
+    	    // Chuyển hướng hoặc thông báo thành công (có thể thêm redirect hoặc thông báo trong giao diện)
+    	    return mapping.findForward("search");
+    	}
+
+
+
+
+    	if ("Search".equals(action)) {
+    	    // Kiểm tra định dạng YYYY/MM/DD của birthdayFrom và birthdayTo
+    	    String datePattern = "^\\d{4}/\\d{2}/\\d{2}$";  // Regex kiểm tra định dạng YYYY/MM/DD}
+    	    
+    	    // Không có lỗi, thực hiện tìm kiếm
+    	    customerList = searchDao.searchCustomers(customerName, sex, fromBirthday, toBirthday);
+    	    
+    	    // Logic phân trang...
+    	    int PAGE_SIZE = 2;
+    	    String pageStr = request.getParameter("page");
+    	    Integer currentPage = 1;
+    	    if (pageStr != null) {
+    	        currentPage = Integer.parseInt(pageStr);
+    	    }
+    	    if (currentPage == null || currentPage < 1) {
+    	        currentPage = 1;
+    	    }
+    	    int startRow = (currentPage - 1) * PAGE_SIZE;
+    	    int totalCustomers = customerList.size();
+    	    int totalPages = (int) Math.ceil((double) totalCustomers / PAGE_SIZE);
+    	    
+    	    List<CustomerDto> paginatedList = customerList.subList(
+    	        Math.min(startRow, totalCustomers),
+    	        Math.min(startRow + PAGE_SIZE, totalCustomers)
+    	    );
+    	    
+    	    // Lưu thông tin tìm kiếm vào session
+    	    session.setAttribute("customerName", customerName);
+    	    session.setAttribute("sex", sex);
+    	    session.setAttribute("fromBirthday", fromBirthday);
+    	    session.setAttribute("toBirthday", toBirthday);
+    	    
+    	    session.setAttribute("customerList", paginatedList);
+    	    session.setAttribute("currentPage", currentPage);
+    	    session.setAttribute("totalPages", totalPages);
+    	    
+    	    return mapping.findForward("search");
+    	}
+
+
+        if (customerName != null || sex != null || fromBirthday != null || toBirthday != null) {
+            customerList = searchDao.searchCustomers(customerName, sex, fromBirthday, toBirthday);
+        } else {	
+            customerList = searchDao.getAllCustomers();
+        }
+        int PAGE_SIZE = 2;
+        String pageStr = request.getParameter("page");
+        Integer currentPage = (Integer) session.getAttribute("currentPage");
+        if (pageStr != null) {
+            currentPage = Integer.parseInt(pageStr);
+        }
+        if (currentPage == null || currentPage < 1 ) {
+            currentPage = 1;
+        }
+        int startRow = (currentPage - 1) * PAGE_SIZE;
+        int totalCustomers = customerList.size();
+        int totalPages = (int) Math.ceil((double) totalCustomers / PAGE_SIZE);
+        List<CustomerDto> paginatedList = customerList.subList(
+                Math.min(startRow, totalCustomers),
+                Math.min(startRow + PAGE_SIZE, totalCustomers)
+        );
+        session.setAttribute("customerName", customerName);
+        session.setAttribute("sex", sex);
+        session.setAttribute("fromBirthday", fromBirthday);
+        session.setAttribute("toBirthday", toBirthday);
+        session.setAttribute("customerList", paginatedList);
+        session.setAttribute("currentPage", currentPage);
+        session.setAttribute("totalPages", totalPages);
+    	return mapping.findForward("search");
+    }
+}
+
+```
+```
+import fjs.cs.form.SearchForm;
+import org.apache.struts.action.ActionForm;
+import org.apache.struts.action.ActionForward;
+import org.apache.struts.action.ActionMapping;
+import org.hibernate.Session;
+import org.hibernate.Transaction;
+import org.hibernate.query.Query;
+
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import org.springframework.web.multipart.MultipartFile;
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.util.ArrayList;
+import java.util.List;
+
+public class SearchAction extends org.apache.struts.action.Action {
+    @Override
+    public ActionForward execute(ActionMapping mapping, ActionForm form,
+                                 HttpServletRequest request, HttpServletResponse response) {
+        SearchForm searchForm = (SearchForm) form;
+        MultipartFile file = searchForm.getFile();
+
+        // Kiểm tra file upload
+        if (file == null || file.isEmpty()) {
+            String alertMessage = "File import not exist";
+            request.setAttribute("alertMessage", alertMessage);
+            return mapping.findForward("failure");
+        }
+
+        // Kiểm tra định dạng file
+        String fileName = file.getOriginalFilename();
+        if (!fileName.endsWith(".csv")) {
+            String alertMessage = "File import is not valid";
+            request.setAttribute("alertMessage", alertMessage);
+            return mapping.findForward("failure");
+        }
+
+        List<String> errorMessages = new ArrayList<>();
+
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(file.getInputStream()))) {
+            String line;
+            int lineNumber = 1;
+
+            // Bỏ qua tiêu đề
+            reader.readLine();
+
+            while ((line = reader.readLine()) != null) {
+                String[] values = line.split(",");
+                String customerId = values[0].trim(); // Giả sử customerId ở cột đầu tiên
+
+                // Kiểm tra customerId không empty và không tồn tại trong bảng mstcustomer
+                if (!customerId.isEmpty() && !isCustomerIdExists(customerId)) {
+                    String errorMessage = String.format("Line %d: customerId = %s is not existed", lineNumber, customerId);
+                    errorMessages.add(errorMessage);
+                }
+                lineNumber++;
+            }
+        } catch (Exception e) {
+            // Xử lý lỗi đọc file
+            String alertMessage = "Error reading file: " + e.getMessage();
+            request.setAttribute("alertMessage", alertMessage);
+            return mapping.findForward("failure");
+        }
+
+        // Nếu có lỗi, hiển thị tất cả các lỗi
+        if (!errorMessages.isEmpty()) {
+            StringBuilder allErrors = new StringBuilder();
+            for (String errorMessage : errorMessages) {
+                allErrors.append(errorMessage).append("\n");
+            }
+            request.setAttribute("alertMessage", allErrors.toString());
+            return mapping.findForward("failure");
+        }
+
+        // Nếu không có lỗi, tiếp tục xử lý
+        return mapping.findForward("success");
+    }
+
+    private boolean isCustomerIdExists(String customerId) {
+        // Kiểm tra sự tồn tại của customerId trong bảng mstcustomer
+        Session session = HibernateUtil.getSessionFactory().openSession();
+        Transaction transaction = null;
+        boolean exists = false;
+
+        try {
+            transaction = session.beginTransaction();
+            String hql = "FROM MstCustomer WHERE customerId = :customerId AND deleteYmd IS NULL";
+            Query query = session.createQuery(hql);
+            query.setParameter("customerId", customerId);
+            exists = !query.list().isEmpty();
+            transaction.commit();
+        } catch (Exception e) {
+            if (transaction != null) transaction.rollback();
+            e.printStackTrace();
+        } finally {
+            session.close();
+        }
+        return exists;
+    }
+}
+
+```
+```
+<c:if test="${not empty alertMessage}">
+    <script>
+        alert("${alertMessage}");
+    </script>
+</c:if>
+
+```
+```
 ai
 package fjs.cs.logic;
 
