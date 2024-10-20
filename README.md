@@ -1,3 +1,477 @@
+https://drive.google.com/drive/folders/1bPh22WOHnfjV8E2gzLIvzQr1Bx1uL9nx?usp=sharing
+```
+
+uploadform
+package fjs.cs.form;
+
+import org.apache.struts.action.ActionForm;
+import org.apache.struts.upload.FormFile;
+
+public class UploadForm extends ActionForm {
+    /**
+	 * 
+	 */
+	private static final long serialVersionUID = 1L;
+	private FormFile file;
+    private String fileName;
+
+    public FormFile getFile() {
+        return file;
+    }
+
+    public void setFile(FormFile file) {
+        this.file = file;
+    }
+
+    public String getFileName() {
+        return fileName;
+    }
+
+    public void setFileName(String fileName) {
+        this.fileName = fileName;
+    }
+}
+
+```
+```
+error.username.required=ChÆ°a nháº­p user name
+error.password.required=ChÆ°a nháº­p password
+error.login.invalid= ããã«ã¡ã¯
+error.birthday.invalid=ngay sinh khong hop le
+error.delete.noselection=Please select at least one customer to delete.
+error.file.notexist=File import not existed
+error.customer.name.empty = Line {0} : Customer name is empty \\n
+error.email.tooLong = Line {0} : value email is more than 40
+error.customer.not.exists=Line {0}: customerId = {1} is not existed
+dao
+package fjs.cs.dao;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import org.hibernate.Criteria;
+import org.hibernate.Query;
+import org.hibernate.Session;
+import org.hibernate.SessionFactory;
+import org.hibernate.Transaction;
+
+import fjs.cs.dto.CustomerDto;
+import fjs.cs.model.Customer;
+
+public class SearchDao {
+	
+	private SessionFactory sessionFactory;
+
+	public void setSessionFactory(SessionFactory sessionFactory) {
+	   this.sessionFactory = sessionFactory;
+	}
+	@SuppressWarnings("unchecked")
+	public List<CustomerDto> getAllCustomers() {
+	    Session session = sessionFactory.openSession();
+	    String hql = "SELECT c.customerID, c.customerName, c.sex, c.birthday, c.address FROM Customer c WHERE c.delete_ymd IS NULL";
+	    List<Object[]> results = session.createQuery(hql).list();
+	    session.close();
+	
+	    List<CustomerDto> customers = new ArrayList<>();
+	    for (Object[] row : results) {
+	        CustomerDto dto = new CustomerDto();
+	        dto.setCustomerID((int) row[0]);
+	        dto.setCustomerName((String) row[1]);
+	        dto.setSex((String) row[2]);
+	        dto.setBirthday((String) row[3]);
+	        dto.setAddress((String) row[4]);
+	        customers.add(dto);
+	    }
+	
+	    return customers;
+	}		
+//	@SuppressWarnings("unchecked")
+//	public List<CustomerDto> getAllCustomers() {
+//    	Transaction transaction = null;
+//    	List<CustomerDto> customer = new ArrayList<>();
+//        Session session = sessionFactory.openSession();
+//        transaction = session.beginTransaction();
+//        String hql = "SELECT new fjs.cs.dto.CustomerDto(c.customerID, c.customerName, c.sex, c.birthday, c.address) " +
+//                "FROM Customer c WHERE c.delete_ymd IS NULL";
+//        Query query = session.createQuery(hql);
+//        customer  = query.list();
+//        transaction.commit();
+//        return customer;
+//    }
+	
+    public List<Object[]> getAllCustomerNamesAndAddresses() {
+        Transaction transaction = null;
+        List<Object[]> customerList = null;
+        Session session = sessionFactory.openSession();
+
+        try {
+            // Bắt đầu transaction
+            transaction = session.beginTransaction();
+
+            // Viết câu HQL để lấy customerName và address
+            String hql = "SELECT c.customerName, c.address FROM Customer c WHERE c.delete_ymd IS NULL";
+            Query query = session.createQuery(hql);  // Sử dụng kiểu Query không generic
+
+            // Lấy danh sách kết quả và đảm bảo nó là List<Object[]>
+            customerList = (List<Object[]>) query.list(); // Cast kết quả về List<Object[]>
+            
+            // Commit transaction
+            transaction.commit();
+        } catch (Exception e) {
+            if (transaction != null) {
+                transaction.rollback();
+            }
+            e.printStackTrace();
+        } finally {
+            session.close();
+        }
+        
+        return customerList;
+    }
+	@SuppressWarnings("unchecked")
+	public List<CustomerDto> searchCustomers(String customerName, String sex, String birthdayFrom, String birthdayTo) {
+
+	    Session session = sessionFactory.openSession();
+	    
+	    try {
+	        // Tạo câu truy vấn HQL
+	        StringBuilder hql = new StringBuilder("SELECT c.customerID, c.customerName, c.sex, c.birthday, c.address FROM Customer c WHERE c.delete_ymd IS NULL");
+	        List<Object> params = new ArrayList<>();
+
+	        // Thêm điều kiện tìm kiếm
+	        if (customerName != null && !customerName.trim().isEmpty()) {
+	            hql.append(" AND c.customerName LIKE ?");
+	            params.add("%" + customerName + "%");
+	        }
+	        
+	        if (sex != null && !sex.trim().isEmpty()) {
+	            hql.append(" AND c.sex = ?");
+	            params.add(sex);
+	        }
+	        
+	        if (birthdayFrom != null && !birthdayFrom.trim().isEmpty()) {
+	            hql.append(" AND c.birthday >= ?");
+	            params.add(birthdayFrom);
+	        }
+	        
+	        if (birthdayTo != null && !birthdayTo.trim().isEmpty()) {
+	            hql.append(" AND c.birthday <= ?");
+	            params.add(birthdayTo);
+	        }
+
+	        // Thực thi query
+	        Query query = session.createQuery(hql.toString());
+	        for (int i = 0; i < params.size(); i++) {
+	            query.setParameter(i, params.get(i));
+	        }
+
+	        // Lấy danh sách kết quả trả về
+	        List<Object[]> results = query.list();  // Kết quả là danh sách Object[]
+	        List<CustomerDto> customerDtos = new ArrayList<>();
+
+	        // Xử lý kết quả trả về
+	        for (Object[] row : results) {
+	            CustomerDto dto = new CustomerDto(
+	                (Integer) row[0],   // customerID
+	                (String) row[1],    // customerName
+	                (String) row[2],    // sex
+	                (String) row[3],    // birthday
+	                (String) row[4]     // address
+	            );
+	            customerDtos.add(dto);
+	        }
+	        
+	        return customerDtos;
+	    } finally {
+	        session.close();
+	    }
+	}	
+	public void addCustomer(CustomerDto customerDto) {
+	    Transaction transaction = null;
+	    Session session = sessionFactory.openSession();
+	    
+	    try {
+	        // Bắt đầu transaction
+	        transaction = session.beginTransaction();
+
+	        // Tạo đối tượng Customer từ CustomerDto
+	        Customer customer = new Customer();
+	        customer.setCustomerID(customerDto.getCustomerID()); // Nếu ID tự động sinh, bạn có thể bỏ qua dòng này
+	        customer.setCustomerName(customerDto.getCustomerName());
+	        customer.setSex(customerDto.getSex());
+	        customer.setBirthday(customerDto.getBirthday());
+	        customer.setAddress(customerDto.getAddress());
+	        customer.setEmail(customerDto.getEmail()); // Nếu có email trong Dto
+	        
+	        // Lưu đối tượng Customer vào database
+	        session.save(customer);
+	        
+	        // Commit transaction
+	        transaction.commit();
+	        
+	    } catch (Exception e) {
+	        if (transaction != null) {
+	            transaction.rollback(); // Rollback nếu có lỗi
+	        }
+	        e.printStackTrace();
+	    } finally {
+	        session.close(); // Đóng session sau khi hoàn thành
+	    }
+	}
+    public boolean isCustomerExists(int customerId) {
+    	Session session = sessionFactory.openSession();
+        boolean exists = false;
+
+        try {
+            // HQL query để kiểm tra sự tồn tại của customerId
+            String hql = "SELECT count(c.customerID) FROM Customer c WHERE c.customerID = :customerID AND c.delete_ymd IS NULL";
+            Query query = session.createQuery(hql); // Không sử dụng kiểu tham số hóa ở đây
+            query.setParameter("customerId", customerId);
+
+            Long count = (Long) query.uniqueResult(); // Lấy kết quả duy nhất
+            exists = (count != null && count > 0); // Nếu có kết quả và > 0, thì customerId tồn tại
+        } catch (Exception e) {
+            e.printStackTrace(); // Xử lý lỗi
+        } finally {
+            session.close(); // Đóng session
+        }
+        return exists;
+    }
+}
+
+```
+```
+uploadaction
+package fjs.cs.action;
+
+import java.io.BufferedReader;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.util.ArrayList;
+import java.util.List;
+
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+
+import org.apache.struts.action.Action;
+import org.apache.struts.action.ActionForm;
+import org.apache.struts.action.ActionForward;
+import org.apache.struts.action.ActionMapping;
+import org.apache.struts.action.ActionMessage;
+import org.apache.struts.action.ActionMessages;
+import org.apache.struts.upload.FormFile;
+
+import fjs.cs.form.UploadForm;
+import fjs.cs.dao.SearchDao;
+import fjs.cs.dto.CustomerDto
+
+public class UploadAction extends Action {
+    private SearchDao searchDao;
+	
+    public void setSearchDao(SearchDao searchDao) {
+        this.searchDao = searchDao;
+    }
+    public ActionForward execute(ActionMapping mapping, ActionForm form,
+                                 HttpServletRequest request, HttpServletResponse response) {
+        UploadForm uploadForm = (UploadForm) form;
+        FormFile file = uploadForm.getFile();
+        String action = request.getParameter("action");
+
+        // Kiểm tra khi ấn nút "Upload"
+        if ("Upload".equals(action)) {
+            // Kiểm tra nếu không có file được chọn
+            if (file == null || file.getFileSize() == 0) {
+                ActionMessages errors = new ActionMessages();
+                errors.add("file", new ActionMessage("error.file.notexist"));
+                saveErrors(request, errors);
+                return mapping.findForward("success");  // Quay lại trang hiện tại khi có lỗi
+            }
+
+            // Đặt fileName vào form nếu file hợp lệ
+            String fileName = file.getFileName();
+            uploadForm.setFileName(fileName);
+            ActionMessages errors = new ActionMessages();
+            List<CustomerDto> customers = readCustomersFromFile(file,errors);
+            // Kiểm tra nếu có lỗi
+            if (!errors.isEmpty()) {
+                saveErrors(request, errors);
+                return mapping.findForward("success");  // Quay lại trang hiện tại khi có lỗi
+            }
+         // Thêm từng customer trong danh sách vào cơ sở dữ liệu
+            for (CustomerDto customer : customers) {
+                if ("male".equalsIgnoreCase(customer.getSex())) {
+                    customer.setSex("0"); // Male thành 0
+                } else if ("female".equalsIgnoreCase(customer.getSex())) {
+                    customer.setSex("1"); // Female thành 1
+                }
+            	searchDao.addCustomer(customer);  // Gọi hàm addCustomer cho từng customer
+            }
+            // Tiến hành xử lý tiếp nếu file hợp lệ
+            return mapping.findForward("search");
+        }
+
+        // Nếu không ấn nút "Upload", trả về trang hiện tại
+        return mapping.findForward("success");
+    }
+    private List<CustomerDto> readCustomersFromFile(FormFile file, ActionMessages errors) {
+        List<CustomerDto> customers = new ArrayList<>();
+        InputStream inputStream = null;
+        BufferedReader reader = null;
+
+        try {
+            inputStream = file.getInputStream();
+            reader = new BufferedReader(new InputStreamReader(inputStream));
+
+            String line;
+            // Bỏ qua dòng tiêu đề
+            reader.readLine();
+
+            int lineNumber = 1; // Đếm số dòng để xác định dòng lỗi
+            while ((line = reader.readLine()) != null) {
+                String[] values = line.split(","); // Chia tách theo dấu phẩy
+
+                // Kiểm tra độ dài mảng để đảm bảo không có giá trị thiếu
+                if (values.length >= 6) {
+                    String customerIdStr = values[0].trim();
+                    String customerName = values[1].trim();
+                    String sex = values[2].trim();
+                    String birthday = values[3].trim();
+                    String email = values[4].trim();
+                    String address = values[5].trim();
+
+                    CustomerDto customer = null;
+                    boolean hasErrors = false; // Biến để theo dõi có lỗi hay không
+
+                    // Kiểm tra nếu customerName là rỗng
+                    if (customerName.isEmpty()) {
+                        errors.add("customerName", new ActionMessage("error.customer.name.empty", lineNumber));
+                        hasErrors = true; // Đánh dấu có lỗi
+                    }
+                    // Kiểm tra nếu email lớn hơn 40 ký tự
+                    if (email.length() > 40) {
+                        errors.add("email", new ActionMessage("error.email.tooLong", lineNumber));
+                        hasErrors = true; // Đánh dấu có lỗi
+                    }
+
+                    // Nếu không có lỗi, kiểm tra customerId
+                    if (!hasErrors) {
+                        if (!customerIdStr.isEmpty()) {
+                            int customerId = Integer.parseInt(customerIdStr);
+                            // Kiểm tra sự tồn tại của customerId trong cơ sở dữ liệu
+                            if (!isCustomerExists(customerId)) {
+                                // Nếu deleteYmd khác null, thêm thông báo lỗi
+                                errors.add("customerIdNotExists", new ActionMessage("error.customer.not.exists", lineNumber, customerId));
+                                hasErrors = true; // Đánh dấu có lỗi
+                            } else {
+                                customer = new CustomerDto(customerId, customerName, sex, birthday, email, address);
+                            }
+                        } else {
+                            // Tạo CustomerDto không bao gồm customerId
+                            customer = new CustomerDto(customerName, sex, birthday, email, address);
+                        }
+                    }
+
+                    // Nếu không có lỗi, thêm customer vào danh sách
+                    if (!hasErrors && customer != null) {
+                        customers.add(customer);
+                    }
+                }
+                lineNumber++;
+            }
+        } catch (Exception e) {
+            e.printStackTrace(); // Ghi log hoặc xử lý lỗi khác
+        } finally {
+            try {
+                if (reader != null) {
+                    reader.close();
+                }
+                if (inputStream != null) {
+                    inputStream.close();
+                }
+            } catch (Exception e) {
+                e.printStackTrace(); // Xử lý lỗi đóng file
+            }
+        }
+
+        return customers;
+    }
+
+    private boolean isCustomerExists(int customerId) {
+        // Phương thức kiểm tra xem customerId có tồn tại trong cơ sở dữ liệu hay không
+        // Giả sử bạn đã có một lớp DAO để truy vấn dữ liệu
+        return searchDao.isCustomerExists(customerId);
+    }
+}
+
+
+```
+```
+upload.jsp
+<%@ taglib uri="http://struts.apache.org/tags-html" prefix="html" %>
+<%@ taglib uri="http://java.sun.com/jsp/jstl/core" prefix="c" %>
+<html>
+<head>
+    <title>Upload File</title>
+    <style>
+        .container {
+            display: flex;
+            justify-content: space-between;
+            width: 400px;
+        }
+        .hidden-file-input {
+            display: none;
+        }
+        .custom-button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px;
+            cursor: pointer;
+        }
+    </style>
+    <script>
+        function triggerFileInput() {
+            document.getElementById('fileInput').click();
+        }
+        function updateFileName() {
+            var input = document.getElementById('fileInput');
+            var fileName = input.files[0] ? input.files[0].name : '';
+            document.getElementById('fileName').value = fileName;
+        }
+        window.onload = function() {
+            setTimeout(function() {
+                var errorMessages = document.getElementById("htmlErrors").innerText.trim();
+                if (errorMessages) {
+                	alert(errorMessages.replace(/\\n/g, '\n'));
+                }
+            }, 100); // Thời gian chờ 2000ms (2 giây)
+        }
+    </script>
+</head>
+<body>
+    <h2>Upload File Example</h2>
+    <p id="messageParagraph">Hahahahea</p>
+    <p id="testP"></p>
+    <html:errors/>
+    <h2>Example</h2>
+    <!-- Thẻ chứa html:errors nhưng ẩn đi -->
+    <div id="htmlErrors" style="display:none;">
+        <html:errors />
+    </div>
+    <html:form action="/upload" enctype="multipart/form-data" onsubmit="showParagraphContent(); return false;">
+        <div class="container">
+            <input type="text" id="fileName" name="fileName" value="<%= request.getAttribute("fileName") != null ? request.getAttribute("fileName").toString() : "" %>" readonly="true" />
+            <input type="file" id="fileInput" class="hidden-file-input" name="file" onchange="updateFileName()" />
+            <button type="button" class="custom-button" onclick="triggerFileInput()">Browse</button>
+        </div>
+        <br/>
+        <button type="submit" value="Upload" name="action">Upload</button>
+    </html:form>
+</body>
+</html>
+
+```
+-----------------------------------------------updatene--------------------------------------------------
 ```
 package fjs.cs.action;
 
