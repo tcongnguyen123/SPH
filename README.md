@@ -1,4 +1,207 @@
 ```
+chua test
+<%@ taglib uri="http://struts.apache.org/tags-html" prefix="html" %>
+<%@ taglib uri="http://struts.apache.org/tags-bean" prefix="bean" %>
+<%@ taglib uri="http://struts.apache.org/tags-logic" prefix="logic" %>
+
+<html:form action="/updateColumnSettings">
+  <div class="settings-container">
+    <!-- Label cho các cột đang hiển thị -->
+    <div class="column-group">
+      <h4>Columns Showing:</h4>
+      <html:select property="selectedColumns" multiple="true" size="5" styleClass="column-select">
+        <html:options collection="availableColumns" property="value" labelProperty="label"/>
+      </html:select>
+    </div>
+
+    <!-- Nút chuyển -->
+    <div class="transfer-buttons">
+      <button type="button" onclick="moveColumns('right')">&gt;&gt;</button>
+      <button type="button" onclick="moveColumns('left')">&lt;&lt;</button>
+    </div>
+
+    <!-- Label cho các cột bị ẩn -->
+    <div class="column-group">
+      <h4>Hidden Columns:</h4>
+      <html:select property="hiddenColumns" multiple="true" size="5" styleClass="column-select">
+        <html:options collection="hiddenColumns" property="value" labelProperty="label"/>
+      </html:select>
+    </div>
+  </div>
+
+  <!-- Table hiển thị dữ liệu -->
+  <table id="dataTable">
+    <thead>
+      <tr>
+        <logic:iterate id="column" name="selectedColumns">
+          <th class="column-${column.value}"><bean:write name="column" property="label"/></th>
+        </logic:iterate>
+      </tr>
+    </thead>
+    <tbody>
+      <logic:iterate id="row" name="dataList">
+        <tr>
+          <logic:iterate id="column" name="selectedColumns">
+            <td class="column-${column.value}">
+              <bean:write name="row" property="${column.value}"/>
+            </td>
+          </logic:iterate>
+        </tr>
+      </logic:iterate>
+    </tbody>
+  </table>
+</html:form>
+```
+```
+.settings-container {
+  display: flex;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.column-group {
+  flex: 1;
+}
+
+.column-select {
+  width: 200px;
+  height: 150px;
+}
+
+.transfer-buttons {
+  display: flex;
+  flex-direction: column;
+  padding: 0 20px;
+}
+
+.transfer-buttons button {
+  margin: 5px;
+  padding: 5px 10px;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th, td {
+  border: 1px solid #ddd;
+  padding: 8px;
+  text-align: left;
+}
+```
+```
+function moveColumns(direction) {
+  var sourceSelect = direction === 'right' ? 
+    document.getElementsByName('selectedColumns')[0] : 
+    document.getElementsByName('hiddenColumns')[0];
+  
+  var targetSelect = direction === 'right' ? 
+    document.getElementsByName('hiddenColumns')[0] : 
+    document.getElementsByName('selectedColumns')[0];
+
+  // Di chuyển các options đã chọn
+  for(var i = sourceSelect.options.length - 1; i >= 0; i--) {
+    var option = sourceSelect.options[i];
+    if(option.selected) {
+      targetSelect.add(option);
+      updateTableColumns();
+    }
+  }
+}
+
+function updateTableColumns() {
+  // Lấy danh sách các cột đang được chọn
+  var selectedColumns = document.getElementsByName('selectedColumns')[0].options;
+  var columnNames = Array.from(selectedColumns).map(opt => opt.value);
+  
+  // Ẩn/hiện các cột tương ứng
+  var table = document.getElementById('dataTable');
+  var headers = table.getElementsByTagName('th');
+  var cells = table.getElementsByTagName('td');
+  
+  // Cập nhật hiển thị của các cột
+  Array.from(headers).concat(Array.from(cells)).forEach(cell => {
+    var columnClass = cell.className;
+    var columnName = columnClass.replace('column-', '');
+    cell.style.display = columnNames.includes(columnName) ? '' : 'none';
+  });
+}
+
+// Tự động lưu settings khi có thay đổi
+function saveSettings() {
+  var selectedColumns = Array.from(document.getElementsByName('selectedColumns')[0].options)
+    .map(opt => opt.value);
+  
+  // Gọi AJAX để lưu settings
+  var xhr = new XMLHttpRequest();
+  xhr.open('POST', 'saveColumnSettings.do', true);
+  xhr.setRequestHeader('Content-Type', 'application/json');
+  xhr.send(JSON.stringify({ columns: selectedColumns }));
+}
+```
+```
+public class ColumnSettingsAction extends Action {
+    
+    public ActionForward execute(ActionMapping mapping, ActionForm form,
+            HttpServletRequest request, HttpServletResponse response) throws Exception {
+        
+        // Khởi tạo danh sách các cột có sẵn
+        List<LabelValueBean> availableColumns = new ArrayList<>();
+        availableColumns.add(new LabelValueBean("ID", "id"));
+        availableColumns.add(new LabelValueBean("Name", "name"));
+        availableColumns.add(new LabelValueBean("Sex", "sex"));
+        availableColumns.add(new LabelValueBean("Email", "email"));
+        availableColumns.add(new LabelValueBean("Address", "address"));
+        
+        // Lấy settings từ database hoặc session
+        UserSettings settings = getUserSettings(request);
+        
+        // Phân chia cột hiện/ẩn dựa trên settings
+        List<LabelValueBean> selectedColumns = new ArrayList<>();
+        List<LabelValueBean> hiddenColumns = new ArrayList<>();
+        
+        for(LabelValueBean column : availableColumns) {
+            if(settings.isColumnVisible(column.getValue())) {
+                selectedColumns.add(column);
+            } else {
+                hiddenColumns.add(column);
+            }
+        }
+        
+        // Set attributes
+        request.setAttribute("availableColumns", selectedColumns);
+        request.setAttribute("hiddenColumns", hiddenColumns);
+        
+        return mapping.findForward("success");
+    }
+}
+```
+```
+public class ColumnSettingsForm extends ActionForm {
+    private String[] selectedColumns;
+    private String[] hiddenColumns;
+    
+    // Getters and setters
+    public String[] getSelectedColumns() {
+        return selectedColumns;
+    }
+    
+    public void setSelectedColumns(String[] selectedColumns) {
+        this.selectedColumns = selectedColumns;
+    }
+    
+    public String[] getHiddenColumns() {
+        return hiddenColumns;
+    }
+    
+    public void setHiddenColumns(String[] hiddenColumns) {
+        this.hiddenColumns = hiddenColumns;
+    }
+}
+```
+neeeeee
+```
 upload action
 package fjs.cs.action;
 
