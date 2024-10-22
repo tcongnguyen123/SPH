@@ -1,3 +1,297 @@
+```
+upload action
+package fjs.cs.action;
+
+import java.io.BufferedReader;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.util.ArrayList;
+import java.util.List;
+
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+
+import org.apache.struts.action.Action;
+import org.apache.struts.action.ActionForm;
+import org.apache.struts.action.ActionForward;
+import org.apache.struts.action.ActionMapping;
+import org.apache.struts.action.ActionMessage;
+import org.apache.struts.action.ActionMessages;
+import org.apache.struts.upload.FormFile;
+
+import fjs.cs.form.UploadForm;
+import fjs.cs.dao.SearchDao;
+import fjs.cs.dto.CustomerDto;
+
+public class UploadAction extends Action {
+    private SearchDao searchDao;
+	
+    public void setSearchDao(SearchDao searchDao) {
+        this.searchDao = searchDao;
+    }
+    public ActionForward execute(ActionMapping mapping, ActionForm form,
+                                 HttpServletRequest request, HttpServletResponse response) {
+        UploadForm uploadForm = (UploadForm) form;
+        FormFile file = uploadForm.getFile();
+        String action = request.getParameter("action");
+
+		// Kiểm tra khi ấn nút "Upload"
+		if ("Upload".equals(action)) {
+		// Kiểm tra nếu không có file được chọn
+		if (file == null || file.getFileSize() == 0) {
+		ActionMessages errors = new ActionMessages();
+		errors.add("file", new ActionMessage("error.file.notexist"));
+		saveErrors(request, errors);
+		return mapping.findForward("success");  // Quay lại trang hiện tại khi có lỗi
+		}
+		
+		// Đặt fileName vào form nếu file hợp lệ
+		String fileName = file.getFileName();
+		uploadForm.setFileName(fileName);
+		ActionMessages errors = new ActionMessages();
+		List<CustomerDto> customers = readCustomersFromFile(file, errors);
+		
+		// Kiểm tra nếu có lỗi
+		if (!errors.isEmpty()) {
+		saveErrors(request, errors);
+		return mapping.findForward("success");  // Quay lại trang hiện tại khi có lỗi
+		}
+		
+		// Biến lưu index của các dòng được insert và update
+		List<Integer> insertedLines = new ArrayList<>();
+		List<Integer> updatedLines = new ArrayList<>();
+		
+		// Thêm hoặc cập nhật từng customer trong danh sách
+		int lineNumber = 1;
+		for (CustomerDto customer : customers) {
+		if ("male".equalsIgnoreCase(customer.getSex())) {
+		   customer.setSex("0"); // Male thành 0
+		} else if ("female".equalsIgnoreCase(customer.getSex())) {
+		   customer.setSex("1"); // Female thành 1
+		}
+		
+		// Kiểm tra nếu có customerId thì update, nếu không có thì add mới
+		if (customer.getCustomerID() != 0) {
+		   // Kiểm tra xem customer đã tồn tại chưa
+		   if (isCustomerExists(customer.getCustomerID())) {
+		       searchDao.editCustomer(customer);  // Gọi hàm editCustomer nếu đã tồn tại
+		       updatedLines.add(lineNumber); // Thêm index dòng được update vào danh sách
+		   } else {
+		       searchDao.addCustomer(customer);   // Gọi hàm addCustomer nếu không tồn tại
+		       insertedLines.add(lineNumber); // Thêm index dòng được insert vào danh sách
+		   }
+		} else {
+		   // Nếu không có customerId thì thêm mới
+		   searchDao.addCustomer(customer);
+		   insertedLines.add(lineNumber); // Thêm index dòng được insert vào danh sách
+		}
+		lineNumber++;
+		}
+		
+		// Tạo thông báo thành công
+		ActionMessages successMessages = new ActionMessages();
+		successMessages.add("success", new ActionMessage("message.success.general"));  // Thêm thông báo "Successfully"
+		
+		if (!insertedLines.isEmpty()) {
+			System.out.println("no vo");
+			successMessages.add("insertSuccess", 
+		    new ActionMessage("message.success.insert", insertedLines.toString().replaceAll("[\\[\\]]", "")));
+		}
+		if (!updatedLines.isEmpty()) {
+			System.out.println("no cung vo");
+			successMessages.add("updateSuccess", 
+		    new ActionMessage("message.success.update", updatedLines.toString().replaceAll("[\\[\\]]", "")));
+		}
+		
+		// Lưu thông báo thành công vào request
+		saveMessages(request, successMessages);
+		
+		// Tiến hành xử lý tiếp nếu file hợp lệ
+		return mapping.findForward("success");
+		}
+
+        // Nếu không ấn nút "Upload", trả về trang hiện tại
+        return mapping.findForward("success");
+    }
+    private List<CustomerDto> readCustomersFromFile(FormFile file, ActionMessages errors) {
+        List<CustomerDto> customers = new ArrayList<>();
+        InputStream inputStream = null;
+        BufferedReader reader = null;
+
+        try {
+            inputStream = file.getInputStream();
+            reader = new BufferedReader(new InputStreamReader(inputStream));
+
+            String line;
+            // Bỏ qua dòng tiêu đề
+            reader.readLine();
+
+            int lineNumber = 1; // Đếm số dòng để xác định dòng lỗi
+            while ((line = reader.readLine()) != null) {
+                String[] values = line.split(","); // Chia tách theo dấu phẩy
+
+                // Kiểm tra độ dài mảng để đảm bảo không có giá trị thiếu
+                if (values.length >= 6) {
+                    String customerIdStr = values[0].trim();
+                    String customerName = values[1].trim();
+                    String sex = values[2].trim();
+                    String birthday = values[3].trim();
+                    String email = values[4].trim();
+                    String address = values[5].trim();
+
+                    CustomerDto customer = null;
+                    boolean hasErrors = false; // Biến để theo dõi có lỗi hay không
+
+                    // Kiểm tra nếu customerName là rỗng
+                    if (customerName.isEmpty()) {
+                        errors.add("customerName", new ActionMessage("error.customer.name.empty", lineNumber));
+                        hasErrors = true; // Đánh dấu có lỗi
+                    }
+                    // Kiểm tra nếu email lớn hơn 40 ký tự
+                    if (email.length() > 40) {
+                        errors.add("email", new ActionMessage("error.email.tooLong", lineNumber));
+                        hasErrors = true; // Đánh dấu có lỗi
+                    }
+
+                    // Nếu không có lỗi, kiểm tra customerId
+                    if (!hasErrors) {
+                        if (!customerIdStr.isEmpty()) {
+                            int customerId = Integer.parseInt(customerIdStr);
+                            // Kiểm tra sự tồn tại của customerId trong cơ sở dữ liệu
+//                            if (!isCustomerExists(customerId)) {
+//                                // Nếu deleteYmd khác null, thêm thông báo lỗi
+//                                errors.add("customerIdNotExists", new ActionMessage("error.customer.not.exists", lineNumber, customerId));
+//                                hasErrors = true; // Đánh dấu có lỗi
+//                            } else {
+                                customer = new CustomerDto(customerId, customerName, sex, birthday, email, address);
+//                            }
+                        } else {
+                            // Tạo CustomerDto không bao gồm customerId
+                            customer = new CustomerDto(customerName, sex, birthday, email, address);
+                        }
+                    }
+
+                    // Nếu không có lỗi, thêm customer vào danh sách
+                    if (!hasErrors && customer != null) {
+                        customers.add(customer);
+                    }
+                }
+                lineNumber++;
+            }
+        } catch (Exception e) {
+            e.printStackTrace(); // Ghi log hoặc xử lý lỗi khác
+        } finally {
+            try {
+                if (reader != null) {
+                    reader.close();
+                }
+                if (inputStream != null) {
+                    inputStream.close();
+                }
+            } catch (Exception e) {
+                e.printStackTrace(); // Xử lý lỗi đóng file
+            }
+        }
+
+        return customers;
+    }
+
+    private boolean isCustomerExists(int customerId) {
+        // Phương thức kiểm tra xem customerId có tồn tại trong cơ sở dữ liệu hay không
+        // Giả sử bạn đã có một lớp DAO để truy vấn dữ liệu
+        return searchDao.isCustomerExists(customerId);
+    }
+}
+
+
+```
+```
+message.success.general=Successfully \\n
+message.success.insert=Insert line(s): {0} \\n
+message.success.update=Update line(s): {0} \\n
+```
+```
+<%@ taglib uri="http://struts.apache.org/tags-html" prefix="html" %>
+<%@ taglib uri="http://java.sun.com/jsp/jstl/core" prefix="c" %>
+<%@ taglib uri="http://struts.apache.org/tags-html" prefix="html" %>
+<%@ taglib uri="/WEB-INF/struts-bean.tld" prefix="bean" %>
+<%@ taglib uri="/WEB-INF/struts-logic.tld" prefix="logic" %>
+<html>
+<head>
+    <title>Upload File</title>
+    <style>
+        .container {
+            display: flex;
+            justify-content: space-between;
+            width: 400px;
+        }
+        .hidden-file-input {
+            display: none;
+        }
+        .custom-button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px;
+            cursor: pointer;
+        }
+    </style>
+    <script>
+        function triggerFileInput() {
+            document.getElementById('fileInput').click();
+        }
+        function updateFileName() {
+            var input = document.getElementById('fileInput');
+            var fileName = input.files[0] ? input.files[0].name : '';
+            document.getElementById('fileName').value = fileName;
+        }
+        window.onload = function() {
+            setTimeout(function() {
+                var errorMessages = document.getElementById("htmlErrors").innerText.trim();
+                if (errorMessages) {
+                	alert(errorMessages.replace(/\\n/g, '\n'));
+                }
+            }, 100); // Thời gian chờ 2000ms (2 giây)
+            // Hiển thị alert cho thành công
+            setTimeout(function() {
+                var successMessages = document.getElementById("messages").innerText.trim();
+                if (successMessages) {
+                	alert(successMessages.replace(/\\n/g, '\n'));
+                }
+            }, 100); // Thời gian chờ 2000ms (2 giây)
+        }
+    </script>
+</head>
+<body>
+    <h2>Upload File Example</h2>
+    <p id="messageParagraph">Hahahahea</p>
+    <p id="testP"></p>
+    <html:errors/>
+    <h2>Example</h2>
+    <!-- Thẻ chứa html:errors nhưng ẩn đi -->
+    <div id="htmlErrors" style="display:none;">
+        <html:errors />
+    </div>
+    <!-- Thẻ chứa thông báo thành công nhưng ẩn đi -->
+    <c:out value="${successMessages}" />
+    <div id= messages>
+        <html:messages id="aMsg" message="true">
+    		<bean:write name="aMsg" filter="false" />
+    	</html:messages>
+    </div>
+    <html:form action="/upload" enctype="multipart/form-data" onsubmit="showParagraphContent();">
+        <div class="container">
+            <input type="text" id="fileName" name="fileName" value="<%= request.getAttribute("fileName") != null ? request.getAttribute("fileName").toString() : "" %>" readonly="true" />
+            <input type="file" id="fileInput" class="hidden-file-input" name="file" onchange="updateFileName()" />
+            <button type="button" class="custom-button" onclick="triggerFileInput()">Browse</button>
+        </div>
+        <br/>
+        <button type="submit" value="Upload" name="action">Upload</button>
+    </html:form>
+</body>
+</html>
+
+```
 https://drive.google.com/drive/folders/1bPh22WOHnfjV8E2gzLIvzQr1Bx1uL9nx?usp=sharing
 ```
 
