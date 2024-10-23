@@ -1,4 +1,643 @@
 ```
+search action
+package fjs.cs.action;
+
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.List;
+
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import javax.servlet.http.HttpSession;
+
+import org.apache.struts.action.Action;
+import org.apache.struts.action.ActionForm;
+import org.apache.struts.action.ActionForward;
+import org.apache.struts.action.ActionMapping;
+import org.apache.struts.action.ActionMessage;
+import org.apache.struts.action.ActionMessages;
+
+import fjs.cs.dao.SearchDao;
+import fjs.cs.dto.CustomerDto;
+import fjs.cs.form.SearchForm;
+
+public class SearchAction extends Action {
+    
+    private SearchDao searchDao;
+	
+    public void setSearchDao(SearchDao searchDao) {
+        this.searchDao = searchDao;
+    }
+//    private SearchLogic searchLogic;
+//	
+//    public void setSearchLogic(SearchLogic searchLogic) {
+//        this.searchLogic = searchLogic;
+//    }
+	public ActionForward execute(ActionMapping mapping, ActionForm form,
+            HttpServletRequest request, HttpServletResponse response) {
+    	HttpSession session = request.getSession();
+    	
+        String[] defaultColumns = {"Customer ID", "Customer Name", "Sex", "Birthday", "Address"};
+        
+        // Nếu selectedColumns chưa được lưu trong session thì thiết lập mặc định
+        if (session.getAttribute("selectedColumns") == null) {
+            session.setAttribute("selectedColumns", defaultColumns);
+        } else {
+            // Nếu đã có selectedColumns trong session, sử dụng danh sách hiện tại
+            String[] selectedColumns = (String[]) session.getAttribute("selectedColumns");
+            session.setAttribute("selectedColumns", selectedColumns);
+            // Nếu selectedColumns rỗng hoặc không hợp lệ, thiết lập lại mặc định
+            if (selectedColumns.length == 0) {
+                session.setAttribute("selectedColumns", defaultColumns);
+            }
+        }
+        
+//        String[] selected = (String[]) session.getAttribute("selectedColumns");
+//        System.out.println("con day " +selected);
+
+    	SearchForm searchForm = (SearchForm) form;
+    	String customerName = searchForm.getCustomerName();
+        String sex = searchForm.getSex();
+        String fromBirthday = searchForm.getBirthdayFrom();
+        String toBirthday = searchForm.getBirthdayTo();
+        ActionMessages errors = new ActionMessages();
+        
+        String action = request.getParameter("action");
+    	List<CustomerDto> customerList;
+
+    	if ("export".equals(action)) {
+    	    customerList = searchDao.searchCustomers(customerName, sex, fromBirthday, toBirthday);
+    	    
+    	    // Tạo file CSV
+    	    StringBuilder csvData = new StringBuilder();
+    	    
+    	    // Tiêu đề của các cột
+    	    csvData.append("\"Customer ID\",\"Name\",\"Sex\",\"Birthday\",\"Address\",\"Email\"\n");
+    	    
+    	    // Thêm dữ liệu khách hàng vào CSV
+    	    for (CustomerDto customer : customerList) {
+    	        csvData.append("\"").append(customer.getCustomerID()).append("\",")
+    	               .append("\"").append(customer.getCustomerName()).append("\",")
+    	               .append("\"").append(customer.getSex() == "0" ? "Female" : "Male").append("\",")
+    	               .append("\"").append(customer.getBirthday()).append("\",")
+    	               .append("\"").append(customer.getAddress()).append("\",")
+    	               .append("\"").append(customer.getEmail()).append("\"\n");
+    	    }
+    	    
+    	    // Đường dẫn đến nơi lưu file CSV
+    	    String filePath = "C:/Users/ASUS/Desktop/Data/customer_export.csv";
+    	    
+    	    try {
+    	        // Ghi dữ liệu CSV vào file trên ổ đĩa
+    	        java.nio.file.Files.write(java.nio.file.Paths.get(filePath), csvData.toString().getBytes());
+    	        System.out.println("File exported successfully to " + filePath);
+    	    } catch (Exception e) {
+    	        e.printStackTrace();
+    	    }
+    	    
+    	    // Chuyển hướng hoặc thông báo thành công (có thể thêm redirect hoặc thông báo trong giao diện)
+    	    return mapping.findForward("search");
+    	}
+    	
+    	if("SettingHeader".equals(action)) {
+    		System.out.println("day la "+action);
+    		return mapping.findForward("settingheader");
+    	}
+
+    	if ("Search".equals(action)) {
+    	    // Kiểm tra định dạng YYYY/MM/DD của birthdayFrom và birthdayTo
+    	    String datePattern = "^\\d{4}/\\d{2}/\\d{2}$";  // Regex kiểm tra định dạng YYYY/MM/DD}
+    	    
+    	    // Không có lỗi, thực hiện tìm kiếm
+    	    customerList = searchDao.searchCustomers(customerName, sex, fromBirthday, toBirthday);
+    	    
+    	    // Logic phân trang...
+    	    int PAGE_SIZE = 2;
+    	    String pageStr = request.getParameter("page");
+    	    Integer currentPage = 1;
+    	    if (pageStr != null) {
+    	        currentPage = Integer.parseInt(pageStr);
+    	    }
+    	    if (currentPage == null || currentPage < 1) {
+    	        currentPage = 1;
+    	    }
+    	    int startRow = (currentPage - 1) * PAGE_SIZE;
+    	    int totalCustomers = customerList.size();
+    	    int totalPages = (int) Math.ceil((double) totalCustomers / PAGE_SIZE);
+    	    
+    	    List<CustomerDto> paginatedList = customerList.subList(
+    	        Math.min(startRow, totalCustomers),
+    	        Math.min(startRow + PAGE_SIZE, totalCustomers)
+    	    );
+    	    
+    	    // Lưu thông tin tìm kiếm vào session
+    	    session.setAttribute("customerName", customerName);
+    	    session.setAttribute("sex", sex);
+    	    session.setAttribute("fromBirthday", fromBirthday);
+    	    session.setAttribute("toBirthday", toBirthday);
+    	    
+    	    session.setAttribute("customerList", paginatedList);
+    	    session.setAttribute("currentPage", currentPage);
+    	    session.setAttribute("totalPages", totalPages);
+    	    
+    	    return mapping.findForward("search");
+    	}
+
+
+        if (customerName != null || sex != null || fromBirthday != null || toBirthday != null) {
+            customerList = searchDao.searchCustomers(customerName, sex, fromBirthday, toBirthday);
+        } else {	
+            customerList = searchDao.getAllCustomers();
+        }
+        int PAGE_SIZE = 2;
+        String pageStr = request.getParameter("page");
+        Integer currentPage = (Integer) session.getAttribute("currentPage");
+        if (pageStr != null) {
+            currentPage = Integer.parseInt(pageStr);
+        }
+        if (currentPage == null || currentPage < 1 ) {
+            currentPage = 1;
+        }
+        int startRow = (currentPage - 1) * PAGE_SIZE;
+        int totalCustomers = customerList.size();
+        int totalPages = (int) Math.ceil((double) totalCustomers / PAGE_SIZE);
+        List<CustomerDto> paginatedList = customerList.subList(
+                Math.min(startRow, totalCustomers),
+                Math.min(startRow + PAGE_SIZE, totalCustomers)
+        );
+        session.setAttribute("customerName", customerName);
+        session.setAttribute("sex", sex);
+        session.setAttribute("fromBirthday", fromBirthday);
+        session.setAttribute("toBirthday", toBirthday);
+        session.setAttribute("customerList", paginatedList);
+        session.setAttribute("currentPage", currentPage);
+        session.setAttribute("totalPages", totalPages);
+    	return mapping.findForward("search");
+    }
+}
+
+```
+```
+<%@ page language="java" contentType="text/html; charset=UTF-8"
+    pageEncoding="UTF-8"%>
+<%@ taglib uri="http://java.sun.com/jsp/jstl/core" prefix="c"%>
+<%@ taglib uri="http://struts.apache.org/tags-html" prefix="html" %>
+<%@ taglib uri="/WEB-INF/struts-bean.tld" prefix="bean" %>
+<%@ taglib uri="/WEB-INF/struts-logic.tld" prefix="logic" %>
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Search Customers</title>
+<style type="text/css">
+    body {
+        margin-left: 20px;
+        margin-right: 20px;
+        background-color: #bcffff;
+    }
+    .header {
+        border-bottom: 2px solid;
+    }
+    .header h1 {
+        color: red;
+    }
+    .welcome_user {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+    .divider {
+        height: 20px;
+        width: 100%;
+        background-color: #3097ff;
+    }
+    .search form {
+        display: flex;
+        justify-content: space-around;
+        align-items: center;
+        padding: 10px;
+        margin-top: 20px;
+        background-color: #ffff56;
+    }
+    .pagination form {
+        margin-top: 10px;
+        display: flex;
+    }
+    .pagination .navigation-left {
+        display: flex;
+        gap: 5px;
+        align-items: center;
+    }
+    .pagination .navigation-right {
+        display: flex;
+        gap: 5px;
+        margin-left: auto;
+        align-items: center;
+    }
+    table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+    th, td {
+        padding: 8px;
+        text-align: left;
+        border-bottom: 1px solid #ddd;
+    }
+    th {
+        background-color: #f2f2f2;
+    }
+    tr:first-child > th {
+        background-color: rgb(0, 223, 0);
+    }
+    tr:nth-child(even) {
+        background-color: #f2f2f2;
+    }
+</style>
+</head>
+<body>
+    <div class="header">
+        <h1>TRAINING</h1>
+    </div>
+    <div class="container">
+        <div class="welcome_user">
+            <p>Welcome, <%=session.getAttribute("userName")%></p>
+            <a href="#">Log out</a>
+        </div>
+        <div class="divider"></div>
+        <div class="search">
+            <html:form action="/search" method="post">
+                <div>
+                    <label for="search">Customer Name:</label>
+                    <html:text property="customerName" />
+                </div>
+                <div>
+                    <label for="search">Sex:</label>
+                    <html:select property="sex">
+                        <html:option value=" "></html:option>
+                        <html:option value="0">Male</html:option>
+                        <html:option value="1">Female</html:option>
+                    </html:select>
+                </div>
+                <div style="display: flex; justify-content: center; align-items: center;">
+                    <label for="search">Birthday:</label>
+                    <html:text property="birthdayFrom" styleClass="birthday" />
+                    <p>~</p>
+                    <html:text property="birthdayTo" styleClass="birthday" />
+                </div>
+                <button type="submit" value="Search" name="action">Search</button>
+                <!-- Export Button -->
+                <button type="submit" value="export" name="action">Export CSV</button>
+                <button type="submit" value="SettingHeader" name="action">SettingHeader</button>
+            </html:form>
+        </div>
+        <div class="pagination">
+            <html:form action="/search" method="post">
+                <html:hidden property="customerName" value="${customerName}" />
+                <html:hidden property="sex" value="${sex}" />
+                <html:hidden property="birthdayFrom" value="${fromBirthday}" />
+                <html:hidden property="birthdayTo" value="${toBirthday}" />
+                <div class="navigation-left">
+                    <logic:present name="currentPage">
+                        <logic:greaterThan name="currentPage" value="1">
+                            <button type="submit" name="page" value="1">&laquo;</button>
+                        </logic:greaterThan>
+                        <logic:lessEqual name="currentPage" value="1">
+                            <button type="button" disabled>&laquo;</button>
+                        </logic:lessEqual>
+                    </logic:present>
+
+                    <logic:present name="currentPage">
+                        <logic:greaterThan name="currentPage" value="1">
+                            <button type="submit" name="page" value="${currentPage - 1}">&lt;</button>
+                        </logic:greaterThan>
+                        <logic:lessEqual name="currentPage" value="1">
+                            <button type="button" disabled>&lt;</button>
+                        </logic:lessEqual>
+                    </logic:present>
+                    <p>Previous</p>
+                </div>
+                <div class="navigation-right">
+                    <p>Next</p>
+                    <logic:present name="currentPage">
+                        <logic:lessThan name="currentPage" value="${totalPages}">
+                            <button type="submit" name="page" value="${currentPage + 1}">&gt;</button>
+                        </logic:lessThan>
+                        <logic:greaterEqual name="currentPage" value="${totalPages}">
+                            <button type="button" disabled>&gt;</button>
+                        </logic:greaterEqual>
+                    </logic:present>
+
+                    <logic:present name="currentPage">
+                        <logic:lessThan name="currentPage" value="${totalPages}">
+                            <button type="submit" name="page" value="${totalPages}">&raquo;</button>
+                        </logic:lessThan>
+                        <logic:greaterEqual name="currentPage" value="${totalPages}">
+                            <button type="button" disabled>&raquo;</button>
+                        </logic:greaterEqual>
+                    </logic:present>
+                </div>
+            </html:form>
+        </div>
+        <div class="table">
+            <html:form action="/search" method="post" onsubmit="return validateDelete();">
+                <table>
+				    <tr>
+				        <th><input type="checkbox" id="select-all" onclick="selectAllCheckboxes(this)"></th>
+				        <logic:iterate id="column" name="selectedColumns">
+				            <th><bean:write name="column" /></th>
+				        </logic:iterate>
+				    </tr>
+				    <logic:iterate id="customer" name="customerList">
+				        <tr>
+				            <td><input type="checkbox" name="deleteIds" value="${customer.customerID}" onclick="updateSelectAll()"></td>
+				            <logic:iterate id="column" name="selectedColumns" scope="session">
+				                <td>
+				                    <logic:equal name="column" value="Customer ID">
+				                        <a href="edit?id=${customer.customerID}"><bean:write name="customer" property="customerID" /></a>
+				                    </logic:equal>
+				                    <logic:equal name="column" value="Customer Name">
+				                        <bean:write name="customer" property="customerName" />
+				                    </logic:equal>
+				                    <logic:equal name="column" value="Sex">
+				                        <logic:equal name="customer" property="sex" value="0">Male</logic:equal>
+				                        <logic:equal name="customer" property="sex" value="1">Female</logic:equal>
+				                    </logic:equal>
+				                    <logic:equal name="column" value="Birthday">
+				                        <bean:write name="customer" property="birthday" />
+				                    </logic:equal>
+				                    <logic:equal name="column" value="Address">
+				                        <bean:write name="customer" property="address" />
+				                    </logic:equal>
+				                    <logic:equal name="column" value="Email">
+				                        <bean:write name="customer" property="email" />
+				                    </logic:equal>
+				                </td>
+				            </logic:iterate>
+				        </tr>
+				    </logic:iterate>
+                </table>
+                <div style="padding-block: 20px; display: flex; gap: 20px">
+                    <button id="addNew" type="button">Add New</button>
+                    <button id="deleteButton" type="submit" name="action" value="delete">Delete</button>
+                </div>
+            </html:form>
+        </div>
+	
+    </div>
+</body>
+</html>
+
+```
+```
+upload.jsp
+<%@ taglib uri="http://struts.apache.org/tags-html" prefix="html" %>
+<%@ taglib uri="http://java.sun.com/jsp/jstl/core" prefix="c" %>
+<%@ taglib uri="/WEB-INF/struts-bean.tld" prefix="bean" %>
+<%@ taglib uri="/WEB-INF/struts-logic.tld" prefix="logic" %>
+<html>
+<head>
+    <title>Setting Header</title>
+    <style>
+        .selected {
+            background-color: lightblue; /* Màu nền khi được chọn */
+        }
+        label {
+            display: block; /* Hiển thị mỗi label trên 1 dòng */
+            padding: 5px;
+            cursor: pointer;
+        }
+        .list-container {
+            display: flex;
+            justify-content: space-between;
+        }
+        .list {
+            width: 200px;
+            height: 200px;
+            border: 1px solid black;
+            padding: 10px;
+            overflow-y: auto;
+        }
+    </style>
+    <script>
+	    function checkButtonState() {
+	        var customerList = document.getElementById('customerList');
+	
+	            // Nếu label được chọn là đầu tiên, disable Move Up
+	            document.getElementById('moveUpBtn').disabled = (selectedLabel.previousElementSibling === null);
+	
+	            // Nếu label được chọn là cuối cùng, disable Move Down
+	            document.getElementById('moveDownBtn').disabled = (selectedLabel.nextElementSibling === null);
+	
+	            // Các nút Move Left và Move Right chỉ cần kiểm tra nếu có label được chọn
+	            document.getElementById('moveLeftBtn').disabled = false;
+	            document.getElementById('moveRightBtn').disabled = false;
+	    }
+        function toggleMoveButtons() {
+            var selectedLabel = document.querySelector('#customerList label.selected');
+            var moveUpButton = document.getElementById('moveUpButton');
+            var moveDownButton = document.getElementById('moveDownButton');
+
+            if (!selectedLabel) {
+                return;
+            }
+
+            // Disable 'Move Up' if at the top
+            if (!selectedLabel.previousElementSibling) {
+                moveUpButton.disabled = true;
+            } else {
+                moveUpButton.disabled = false;
+            }
+
+            // Disable 'Move Down' if at the bottom
+            if (!selectedLabel.nextElementSibling) {
+                moveDownButton.disabled = true;
+            } else {
+                moveDownButton.disabled = false;
+            }
+        }
+	    function selectLabel(label) {
+	        // Bỏ chọn tất cả các label trong cả hai danh sách
+	        var allLabels = document.querySelectorAll('.list label');
+	        allLabels.forEach(function(item) {
+	            item.classList.remove('selected');
+	        });
+	        // Chọn label hiện tại
+	        label.classList.add('selected');
+	    }
+
+        function moveUp() {
+            var selectedLabel = document.querySelector('#customerList label.selected');
+            if (selectedLabel && selectedLabel.previousElementSibling) {
+                selectedLabel.parentNode.insertBefore(selectedLabel, selectedLabel.previousElementSibling);
+                toggleMoveButtons();
+            }
+        }
+
+        function moveDown() {
+            var selectedLabel = document.querySelector('#customerList label.selected');
+            if (selectedLabel && selectedLabel.nextElementSibling) {
+                selectedLabel.parentNode.insertBefore(selectedLabel.nextElementSibling, selectedLabel);
+            }
+        }
+
+        function moveRight() {
+            var selectedLabel = document.querySelector('#columnList label.selected');
+            if (selectedLabel) {
+                document.getElementById('customerList').appendChild(selectedLabel);
+            }
+        }
+
+        function moveLeft() {
+            var selectedLabel = document.querySelector('#customerList label.selected');
+            if (selectedLabel) {
+                document.getElementById('columnList').appendChild(selectedLabel);
+            } else {
+                alert('Please select a label to move left.');
+            }
+        }
+        function saveSelectedColumns() {
+            var selectedColumns = [];
+            var customerList = document.getElementById('customerList');
+            var labels = customerList.querySelectorAll('label');
+            
+            labels.forEach(function(label) {
+                selectedColumns.push(label.textContent.trim());
+            });
+            
+            document.getElementById('selectedColumns').value = selectedColumns.join(',');
+        }
+    </script>
+</head>
+<body>
+    <h2>Manage Search Screen Columns</h2>
+
+    <html:form action="/upload">
+        <div class="list-container">
+            <!-- Column List -->
+            <div id="columnList" class="list">
+                <logic:iterate id="column" name="availableColumns">
+                    <label onclick="selectLabel(this)">
+                        <bean:write name="column" />
+                    </label>
+                </logic:iterate>
+            </div>
+
+            <!-- Move Buttons -->
+            <div>
+                <button type="button" onclick="moveUp()">Move Up</button><br><br>
+                <button type="button" onclick="moveDown()">Move Down</button><br><br>
+                <button type="button" onclick="moveRight()">Move Right</button><br><br>
+                <button type="button" onclick="moveLeft()">Move Left</button>
+            </div>
+
+            <!-- Customer List -->
+            <div id="customerList" class="list">
+                <c:if test="${not empty sessionScope.selectedColumns}">
+                    <c:forEach var="selectedColumn" items="${sessionScope.selectedColumns}">
+                        <label onclick="selectLabel(this)">
+                            <bean:write name="selectedColumn" />
+                        </label>
+                    </c:forEach>
+                </c:if>
+            </div>
+        </div>
+
+        <!-- Hidden input to store the selected columns -->
+        <input type="hidden" name="selectedColumns" id="selectedColumns" 
+               value="<%= request.getSession().getAttribute("selectedColumns") != null ? 
+                       String.join(",", (String[]) request.getSession().getAttribute("selectedColumns")) : "conchonay" %>" />
+
+        <br><br>
+        <button type="submit" onclick="saveSelectedColumns()" name=action value="save">save</button>
+    </html:form>
+</body>
+</html>
+
+```
+```
+setting action
+
+package fjs.cs.action;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import javax.servlet.http.HttpSession;
+
+import org.apache.struts.action.Action;
+import org.apache.struts.action.ActionForm;
+import org.apache.struts.action.ActionForward;
+import org.apache.struts.action.ActionMapping;
+
+import fjs.cs.dao.SearchDao;
+
+public class UploadAction extends Action {
+    private SearchDao searchDao;
+
+    public void setSearchDao(SearchDao searchDao) {
+        this.searchDao = searchDao;
+    }
+
+    public ActionForward execute(ActionMapping mapping, ActionForm form,
+                                 HttpServletRequest request, HttpServletResponse response) {
+        // Danh sách tất cả các cột
+    	HttpSession session = request.getSession();
+        String[] allColumns = {"Customer ID", "Customer Name", "Sex", "Birthday", "Address", "Email"};
+        String selectedColumns = request.getParameter("selectedColumns");
+        String action = request.getParameter("action");
+        String[] avaiDefault = (String[]) session.getAttribute("availableColumns");
+        if(avaiDefault==null) {
+            List<String> defaultColumns = Arrays.asList("Customer ID", "Customer Name", "Sex", "Birthday", "Address");
+
+            // Các cột còn lại (bao gồm "Email") sẽ là cột chưa được chọn
+            List<String> availableList = new ArrayList<>();
+            for (String column : allColumns) {
+                if (!defaultColumns.contains(column)) {
+                    availableList.add(column);
+                }
+            }
+
+            // Lưu danh sách cột chưa được chọn vào session
+            session.setAttribute("availableColumns", availableList.toArray(new String[0]));
+        }
+        List<String> selectedList = new ArrayList<>();
+        List<String> availableList = new ArrayList<>();
+        if("save".equals(action)) {
+            // Chuyển danh sách cột đã chọn thành danh sách
+            if (selectedColumns != null && !selectedColumns.isEmpty()) {
+                selectedList = Arrays.asList(selectedColumns.split(","));
+                // Lưu danh sách cột đã chọn vào session
+                request.getSession().setAttribute("selectedColumns", selectedList.toArray(new String[0]));
+            }
+
+            // Các cột chưa được chọn (cột ẩn) = Tất cả các cột - Cột đã chọn
+            for (String column : allColumns) {
+                if (!selectedList.contains(column)) {
+                    availableList.add(column);
+                    System.out.println(column);
+                }
+            }
+
+            // Lưu danh sách cột ẩn vào session
+            request.getSession().setAttribute("availableColumns", availableList.toArray(new String[0]));
+            // Chuyển đến trang JSP setting header
+            return mapping.findForward("success");
+        }
+//        else {
+//            // Nếu action không phải là "save", thiết lập availableColumns là mảng rỗng
+//            session.setAttribute("availableColumns", new String[0]);
+//        }
+        return mapping.findForward("success");
+    }
+}
+
+```
+------ new------
+```
 chua test
 <%@ taglib uri="http://struts.apache.org/tags-html" prefix="html" %>
 <%@ taglib uri="http://struts.apache.org/tags-bean" prefix="bean" %>
