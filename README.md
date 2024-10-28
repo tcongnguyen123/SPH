@@ -1,3 +1,669 @@
+```
+hibernate 4.
+import org.hibernate.Session;
+import org.hibernate.Transaction;
+import org.hibernate.query.Query;
+import java.util.List;
+
+public List<CustomerDto> getAllCustomers() {
+    Session session = HibernateUtil.getSessionFactory().openSession();
+    Transaction transaction = null;
+    List<CustomerDto> customerList = null;
+
+    try {
+        transaction = session.beginTransaction();
+        Query<CustomerDto> query = session.createQuery("FROM CustomerDto", CustomerDto.class);
+        customerList = query.list();
+        transaction.commit();
+    } catch (Exception e) {
+        if (transaction != null) {
+            transaction.rollback();
+        }
+        e.printStackTrace();
+    } finally {
+        session.close();
+    }
+    
+    return customerList;
+}
+
+```
+```
+import org.hibernate.Session;
+import org.hibernate.Transaction;
+import org.hibernate.query.Query;
+import java.util.List;
+
+public List<CustomerDto> searchCustomers(String customerName, String sex, String fromBirthday, String toBirthday) {
+    Session session = HibernateUtil.getSessionFactory().openSession();
+    Transaction transaction = null;
+    List<CustomerDto> customerList = null;
+
+    try {
+        transaction = session.beginTransaction();
+        String hql = "FROM CustomerDto c WHERE 1=1"; // Bắt đầu với một điều kiện đúng
+
+        if (customerName != null && !customerName.isEmpty()) {
+            hql += " AND c.customerName LIKE :customerName";
+        }
+        if (sex != null && !sex.isEmpty()) {
+            hql += " AND c.sex = :sex";
+        }
+        if (fromBirthday != null && !fromBirthday.isEmpty()) {
+            hql += " AND c.birthday >= :fromBirthday";
+        }
+        if (toBirthday != null && !toBirthday.isEmpty()) {
+            hql += " AND c.birthday <= :toBirthday";
+        }
+
+        Query<CustomerDto> query = session.createQuery(hql, CustomerDto.class);
+
+        if (customerName != null && !customerName.isEmpty()) {
+            query.setParameter("customerName", "%" + customerName + "%");
+        }
+        if (sex != null && !sex.isEmpty()) {
+            query.setParameter("sex", sex);
+        }
+        if (fromBirthday != null && !fromBirthday.isEmpty()) {
+            query.setParameter("fromBirthday", fromBirthday);
+        }
+        if (toBirthday != null && !toBirthday.isEmpty()) {
+            query.setParameter("toBirthday", toBirthday);
+        }
+
+        customerList = query.list();
+        transaction.commit();
+    } catch (Exception e) {
+        if (transaction != null) {
+            transaction.rollback();
+        }
+        e.printStackTrace();
+    } finally {
+        session.close();
+    }
+    
+    return customerList;
+}
+
+```
+```
+package fjs.cs.dao;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import org.hibernate.Criteria;
+import org.hibernate.Query;
+import org.hibernate.Session;
+import org.hibernate.SessionFactory;
+import org.hibernate.Transaction;
+
+import fjs.cs.dto.CustomerDto;
+import fjs.cs.model.Customer;
+
+public class SearchDao {
+	
+	private SessionFactory sessionFactory;
+
+	public void setSessionFactory(SessionFactory sessionFactory) {
+	   this.sessionFactory = sessionFactory;
+	}
+    public List<CustomerDto> getAllCustomers() {
+        Session session = sessionFactory.openSession();
+        String hql = "SELECT c.customerID, c.customerName, c.sex, c.birthday, c.address " +
+                     "FROM Customer c WHERE c.delete_ymd IS NULL";
+        
+        List<?> results = session.createQuery(hql).list();
+        session.close();
+
+        List<CustomerDto> customers = new ArrayList<>();
+        for (Object result : results) {
+            Object[] row = (Object[]) result;
+            CustomerDto dto = new CustomerDto();
+            dto.setCustomerID((int) row[0]);
+            dto.setCustomerName((String) row[1]);
+            dto.setSex((String) row[2]);
+            dto.setBirthday((String) row[3]);
+            dto.setAddress((String) row[4]);
+            customers.add(dto);
+        }
+
+        return customers;
+    }
+	
+    public List<CustomerDto> searchCustomers(String customerName, String sex, String birthdayFrom, String birthdayTo) {
+        Session session = sessionFactory.openSession();
+        
+        try {
+            // Tạo câu truy vấn HQL
+            StringBuilder hql = new StringBuilder("SELECT c.customerID, c.customerName, c.sex, c.birthday, c.address FROM Customer c WHERE c.delete_ymd IS NULL");
+            
+            // Thêm điều kiện tìm kiếm
+            if (customerName != null && !customerName.trim().isEmpty()) {
+                hql.append(" AND c.customerName LIKE :customerName");
+            }
+            if (sex != null && !sex.trim().isEmpty()) {
+                hql.append(" AND c.sex = :sex");
+            }
+            if (birthdayFrom != null && !birthdayFrom.trim().isEmpty()) {
+                hql.append(" AND c.birthday >= :birthdayFrom");
+            }
+            if (birthdayTo != null && !birthdayTo.trim().isEmpty()) {
+                hql.append(" AND c.birthday <= :birthdayTo");
+            }
+
+            // Tạo query
+            Query query = session.createQuery(hql.toString());
+
+            // Gán giá trị cho các tham số
+            if (customerName != null && !customerName.trim().isEmpty()) {
+                query.setParameter("customerName", "%" + customerName + "%");
+            }
+            if (sex != null && !sex.trim().isEmpty()) {
+                query.setParameter("sex", sex);
+            }
+            if (birthdayFrom != null && !birthdayFrom.trim().isEmpty()) {
+                query.setParameter("birthdayFrom", birthdayFrom);
+            }
+            if (birthdayTo != null && !birthdayTo.trim().isEmpty()) {
+                query.setParameter("birthdayTo", birthdayTo);
+            }
+
+            // Lấy danh sách kết quả trả về
+            List<?> results = query.list();
+            List<CustomerDto> customerDtos = new ArrayList<>();
+
+            // Xử lý kết quả trả về
+            for (Object result : results) {
+                Object[] row = (Object[]) result;
+                CustomerDto dto = new CustomerDto(
+                    (Integer) row[0],   // customerID
+                    (String) row[1],    // customerName
+                    (String) row[2],    // sex
+                    (String) row[3],    // birthday
+                    (String) row[4]     // address
+                );
+                customerDtos.add(dto);
+            }
+            
+            return customerDtos;
+        } finally {
+            session.close();
+        }
+    }
+
+	public void addCustomer(CustomerDto customerDto) {
+	    Transaction transaction = null;
+	    Session session = sessionFactory.openSession();
+	    
+	    try {
+	        // Bắt đầu transaction
+	        transaction = session.beginTransaction();
+
+	        // Tạo đối tượng Customer từ CustomerDto
+	        Customer customer = new Customer();
+	        customer.setCustomerID(customerDto.getCustomerID()); // Nếu ID tự động sinh, bạn có thể bỏ qua dòng này
+	        customer.setCustomerName(customerDto.getCustomerName());
+	        customer.setSex(customerDto.getSex());
+	        customer.setBirthday(customerDto.getBirthday());
+	        customer.setAddress(customerDto.getAddress());
+	        customer.setEmail(customerDto.getEmail()); // Nếu có email trong Dto
+	        
+	        // Lưu đối tượng Customer vào database
+	        session.save(customer);
+	        
+	        // Commit transaction
+	        transaction.commit();
+	        
+	    } catch (Exception e) {
+	        if (transaction != null) {
+	            transaction.rollback(); // Rollback nếu có lỗi
+	        }
+	        e.printStackTrace();
+	    } finally {
+	        session.close(); // Đóng session sau khi hoàn thành
+	    }
+	}
+    public boolean isCustomerExists(int customerId) {
+    	Session session = sessionFactory.openSession();
+        boolean exists = false;
+
+        try {
+            // HQL query để kiểm tra sự tồn tại của customerId
+            String hql = "SELECT count(c.customerID) FROM Customer c WHERE c.customerID = :customerID AND c.delete_ymd IS NULL";
+            Query query = session.createQuery(hql); // Không sử dụng kiểu tham số hóa ở đây
+            query.setParameter("customerID", customerId);
+
+            Long count = (Long) query.uniqueResult(); // Lấy kết quả duy nhất
+            exists = (count != null && count > 0); // Nếu có kết quả và > 0, thì customerId tồn tại
+        } catch (Exception e) {
+            e.printStackTrace(); // Xử lý lỗi
+        } finally {
+            session.close(); // Đóng session
+        }
+        return exists;
+    }
+    public void editCustomer(CustomerDto customerDto) {
+        Transaction transaction = null;
+        Session session = sessionFactory.openSession();
+
+        try {
+            // Bắt đầu transaction
+            transaction = session.beginTransaction();
+
+            // Tìm đối tượng Customer từ database theo customerID
+            Customer customer = (Customer) session.get(Customer.class, customerDto.getCustomerID());
+
+            if (customer != null) {
+                // Cập nhật thông tin từ CustomerDto
+                customer.setCustomerName(customerDto.getCustomerName());
+                customer.setSex(customerDto.getSex());
+                customer.setBirthday(customerDto.getBirthday());
+                customer.setAddress(customerDto.getAddress());
+                customer.setEmail(customerDto.getEmail()); // Nếu có email trong Dto
+
+                // Lưu đối tượng Customer đã được cập nhật vào database
+                session.update(customer);
+
+                // Commit transaction
+                transaction.commit();
+            } else {
+                // Nếu không tìm thấy customer, có thể xử lý logic ở đây (ví dụ: throw exception)
+                System.out.println("Customer with ID " + customerDto.getCustomerID() + " not found.");
+            }
+
+        } catch (Exception e) {
+            if (transaction != null) {
+                transaction.rollback(); // Rollback nếu có lỗi
+            }
+            e.printStackTrace();
+        } finally {
+            session.close(); // Đóng session sau khi hoàn thành
+        }
+    }
+}
+
+```
+```
+package fjs.cs.action;
+
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.List;
+
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import javax.servlet.http.HttpSession;
+
+import org.apache.struts.action.Action;
+import org.apache.struts.action.ActionForm;
+import org.apache.struts.action.ActionForward;
+import org.apache.struts.action.ActionMapping;
+import org.apache.struts.action.ActionMessage;
+import org.apache.struts.action.ActionMessages;
+
+import fjs.cs.dao.SearchDao;
+import fjs.cs.dto.CustomerDto;
+import fjs.cs.form.SearchForm;
+
+public class SearchAction extends Action {
+    
+    private SearchDao searchDao;
+	
+    public void setSearchDao(SearchDao searchDao) {
+        this.searchDao = searchDao;
+    }
+//    private SearchLogic searchLogic;
+//	
+//    public void setSearchLogic(SearchLogic searchLogic) {
+//        this.searchLogic = searchLogic;
+//    }
+    public ActionForward execute(ActionMapping mapping, ActionForm form,
+            HttpServletRequest request, HttpServletResponse response) {
+		HttpSession session = request.getSession();
+		
+		String[] defaultColumns = {"Customer ID", "Customer Name", "Sex", "Birthday", "Address"};
+		if (session.getAttribute("selectedColumns") == null) {
+		session.setAttribute("selectedColumns", defaultColumns);
+		}
+		
+		SearchForm searchForm = (SearchForm) form;
+		String customerName = searchForm.getCustomerName();
+		String sex = searchForm.getSex();
+		String fromBirthday = searchForm.getBirthdayFrom();
+		String toBirthday = searchForm.getBirthdayTo();
+		ActionMessages errors = new ActionMessages();
+		String action = request.getParameter("action");
+		
+		String sessionCustomerName = (String) session.getAttribute("lastValidCustomerName");
+		String sessionSex = (String) session.getAttribute("lastValidSex");
+		String sessionFromBirthday = (String) session.getAttribute("lastValidFromBirthday");
+		String sessionToBirthday = (String) session.getAttribute("lastValidToBirthday");
+		
+		List<CustomerDto> customerList;
+		if("export".equals(action)) {
+    	    customerList = searchDao.searchCustomers(customerName, sex, fromBirthday, toBirthday);
+    	    
+    	    // Tạo file CSV
+    	    StringBuilder csvData = new StringBuilder();
+    	    
+    	    // Tiêu đề của các cột
+    	    csvData.append("\"Customer ID\",\"Name\",\"Sex\",\"Birthday\",\"Address\",\"Email\"\n");
+    	    
+    	    // Thêm dữ liệu khách hàng vào CSV
+    	    for (CustomerDto customer : customerList) {
+    	        csvData.append("\"").append(customer.getCustomerID()).append("\",")
+    	               .append("\"").append(customer.getCustomerName()).append("\",")
+    	               .append("\"").append(customer.getSex() == "0" ? "Female" : "Male").append("\",")
+    	               .append("\"").append(customer.getBirthday()).append("\",")
+    	               .append("\"").append(customer.getAddress()).append("\",")
+    	               .append("\"").append(customer.getEmail()).append("\"\n");
+    	    }
+    	    
+    	    // Đường dẫn đến nơi lưu file CSV
+    	    String filePath = request.getServletContext().getRealPath("/") + "csv/Tests.csv";
+    	    
+    	    try {
+    	        // Ghi dữ liệu CSV vào file trên ổ đĩa
+    	        java.nio.file.Files.write(java.nio.file.Paths.get(filePath), csvData.toString().getBytes());
+    	        System.out.println("File exported successfully to " + filePath);
+    	    } catch (Exception e) {
+    	        e.printStackTrace();
+    	    }
+		}
+		if ("Search".equals(action)) {
+		String datePattern = "^\\d{4}/\\d{2}/\\d{2}$";
+		if (!fromBirthday.isEmpty() && !fromBirthday.matches(datePattern)) {
+		errors.add("birthday", new ActionMessage("error.birthday.invalid"));
+		saveErrors(request, errors);
+		
+		searchForm.setBirthdayFrom(fromBirthday);
+		customerList = searchDao.searchCustomers(sessionCustomerName, sessionSex, sessionFromBirthday, sessionToBirthday);
+		} else {
+		session.setAttribute("lastValidCustomerName", customerName);
+		session.setAttribute("lastValidSex", sex);
+		session.setAttribute("lastValidFromBirthday", fromBirthday);
+		session.setAttribute("lastValidToBirthday", toBirthday);
+		
+		customerList = searchDao.searchCustomers(customerName, sex, fromBirthday, toBirthday);
+		}
+		} else {
+		customerList = searchDao.searchCustomers(sessionCustomerName, sessionSex, sessionFromBirthday, sessionToBirthday);
+		}
+		
+		int PAGE_SIZE = 2;
+		String pageStr = request.getParameter("page");
+		Integer currentPage = 1;
+		if (pageStr != null) {
+		currentPage = Integer.parseInt(pageStr);
+		}
+		if (currentPage == null || currentPage < 1) {
+		currentPage = 1;
+		}
+		
+		int startRow = (currentPage - 1) * PAGE_SIZE;
+		int totalCustomers = customerList.size();
+		int totalPages = (int) Math.ceil((double) totalCustomers / PAGE_SIZE);
+		
+		List<CustomerDto> paginatedList = customerList.subList(
+		Math.min(startRow, totalCustomers),
+		Math.min(startRow + PAGE_SIZE, totalCustomers)
+		);
+		
+		session.setAttribute("customerList", paginatedList);
+		session.setAttribute("currentPage", currentPage);
+		session.setAttribute("totalPages", totalPages);
+		
+		// Lưu lại các giá trị tìm kiếm để hiển thị trên form
+		searchForm.setCustomerName(sessionCustomerName);
+		searchForm.setSex(sessionSex);
+		searchForm.setBirthdayFrom(sessionFromBirthday);
+		searchForm.setBirthdayTo(sessionToBirthday);
+		
+		return mapping.findForward("search");
+		}
+
+}
+```
+```
+if("export".equals(action)) {
+    customerList = searchDao.searchCustomers(customerName, sex, fromBirthday, toBirthday);
+
+    // Tạo file CSV
+    StringBuilder csvData = new StringBuilder();
+
+    // Tiêu đề của các cột
+    csvData.append("\"Customer ID\",\"Name\",\"Sex\",\"Birthday\",\"Address\",\"Email\"\n");
+
+    // Thêm dữ liệu khách hàng vào CSV
+    for (CustomerDto customer : customerList) {
+        csvData.append("\"").append(customer.getCustomerID()).append("\",")
+            .append("\"").append(customer.getCustomerName()).append("\",")
+            .append("\"").append(customer.getSex() == "0" ? "Female" : "Male").append("\",")
+            .append("\"").append(customer.getBirthday()).append("\",")
+            .append("\"").append(customer.getAddress()).append("\",")
+            .append("\"").append(customer.getEmail()).append("\"\n");
+    }
+
+    // Lấy đường dẫn tương đối của thư mục CSV
+    String csvDirPath = "csv";
+    String fileName = "Test.csv";
+    String filePath = csvDirPath + File.separator + fileName;
+
+    try {
+        // Tạo thư mục csv nếu chưa tồn tại
+        new File(csvDirPath).mkdirs();
+
+        // Ghi dữ liệu CSV vào file
+        java.nio.file.Files.write(java.nio.file.Paths.get(filePath), csvData.toString().getBytes());
+        System.out.println("File exported successfully to " + filePath);
+    } catch (Exception e) {
+        e.printStackTrace();
+    }
+}
+```
+```
+<%@ page language="java" contentType="text/html; charset=UTF-8"
+    pageEncoding="UTF-8"%>
+<%@ taglib uri="http://java.sun.com/jsp/jstl/core" prefix="c"%>
+<%@ taglib uri="http://struts.apache.org/tags-html" prefix="html" %>
+<%@ taglib uri="/WEB-INF/struts-bean.tld" prefix="bean" %>
+<%@ taglib uri="/WEB-INF/struts-logic.tld" prefix="logic" %>
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Search Customers</title>
+<style type="text/css">
+    body {
+        margin-left: 20px;
+        margin-right: 20px;
+        background-color: #bcffff;
+    }
+    .header {
+        border-bottom: 2px solid;
+    }
+    .header h1 {
+        color: red;
+    }
+    .welcome_user {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+    .divider {
+        height: 20px;
+        width: 100%;
+        background-color: #3097ff;
+    }
+    .search form {
+        display: flex;
+        justify-content: space-around;
+        align-items: center;
+        padding: 10px;
+        margin-top: 20px;
+        background-color: #ffff56;
+    }
+    .pagination {
+        margin-top: 10px;
+    }
+    .pagination .navigation-left {
+        display: flex;
+        gap: 5px;
+        align-items: center;
+    }
+    .pagination .navigation-right {
+        display: flex;
+        gap: 5px;
+        margin-left: auto;
+        align-items: center;
+    }
+    table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+    th, td {
+        padding: 8px;
+        text-align: left;
+        border-bottom: 1px solid #ddd;
+    }
+    th {
+        background-color: #f2f2f2;
+    }
+    tr:first-child > th {
+        background-color: rgb(0, 223, 0);
+    }
+    tr:nth-child(even) {
+        background-color: #f2f2f2;
+    }
+</style>
+</head>
+<body>
+    <div class="header">
+        <h1>TRAINING</h1>
+    </div>
+    <div class="container">
+        <div class="welcome_user">
+            <p>Welcome, <%=session.getAttribute("userName")%></p>
+            <a href="#">Log out</a>
+        </div>
+        <html:errors/>
+        <div class="divider"></div>
+        <html:form action="/search" method="post">
+        <div class="search">
+            <div>
+                <label for="search">Customer Name:</label>
+                <html:text property="customerName" />
+            </div>
+            <div>
+                <label for="search">Sex:</label>
+                <html:select property="sex">
+                    <html:option value=" "></html:option>
+                    <html:option value="0">Male</html:option>
+                    <html:option value="1">Female</html:option>
+                </html:select>
+            </div>
+            <div style="display: flex; justify-content: center; align-items: center;">
+                <label for="search">Birthday:</label>
+                <html:text property="birthdayFrom" styleClass="birthday" />
+                <p>~</p>
+                <html:text property="birthdayTo" styleClass="birthday" />
+            </div>
+            <button type="submit" value="Search" name="action">Search</button>
+            <button type="submit" value="import" name="action">Import CSV</button>
+            <button type="submit" value="SettingHeader" name="action">SettingHeader</button>
+        	<button type="submit" value="export" name="action">Export CSV</button>
+        </div>
+        <div class="pagination">
+            <div class="navigation-left">
+                <logic:present name="currentPage">
+                    <logic:greaterThan name="currentPage" value="1">
+                        <button type="submit" name="page" value="1">&laquo;</button>
+                    </logic:greaterThan>
+                    <logic:lessEqual name="currentPage" value="1">
+                        <button type="button" disabled>&laquo;</button>
+                    </logic:lessEqual>
+                </logic:present>
+
+                <logic:present name="currentPage">
+                    <logic:greaterThan name="currentPage" value="1">
+                        <button type="submit" name="page" value="${currentPage - 1}">&lt;</button>
+                    </logic:greaterThan>
+                    <logic:lessEqual name="currentPage" value="1">
+                        <button type="button" disabled>&lt;</button>
+                    </logic:lessEqual>
+                </logic:present>
+                <p>Previous</p>
+            </div>
+            <div class="navigation-right">
+                <p>Next</p>
+                <logic:present name="currentPage">
+                    <logic:lessThan name="currentPage" value="${totalPages}">
+                        <button type="submit" name="page" value="${currentPage + 1}">&gt;</button>
+                    </logic:lessThan>
+                    <logic:greaterEqual name="currentPage" value="${totalPages}">
+                        <button type="button" disabled>&gt;</button>
+                    </logic:greaterEqual>
+                </logic:present>
+
+                <logic:present name="currentPage">
+                    <logic:lessThan name="currentPage" value="${totalPages}">
+                        <button type="submit" name="page" value="${totalPages}">&raquo;</button>
+                    </logic:lessThan>
+                    <logic:greaterEqual name="currentPage" value="${totalPages}">
+                        <button type="button" disabled>&raquo;</button>
+                    </logic:greaterEqual>
+                </logic:present>
+            </div>
+        </div>
+        <div class="table">
+            <table>
+                <tr>
+                    <th><input type="checkbox" id="select-all" onclick="selectAllCheckboxes(this)"></th>
+                    <logic:iterate id="column" name="selectedColumns">
+                        <th><bean:write name="column" /></th>
+                    </logic:iterate>
+                </tr>
+                <logic:iterate id="customer" name="customerList">
+                    <tr>
+                        <td><input type="checkbox" name="deleteIds" value="${customer.customerID}" onclick="updateSelectAll()"></td>
+                        <logic:iterate id="column" name="selectedColumns" scope="session">
+                            <td>
+                                <logic:equal name="column" value="Customer ID">
+                                    <a href="edit?id=${customer.customerID}"><bean:write name="customer" property="customerID" /></a>
+                                </logic:equal>
+                                <logic:equal name="column" value="Customer Name">
+                                    <bean:write name="customer" property="customerName" />
+                                </logic:equal>
+                                <logic:equal name="column" value="Sex">
+                                    <logic:equal name="customer" property="sex" value="0">Male</logic:equal>
+                                    <logic:equal name="customer" property="sex" value="1">Female</logic:equal>
+                                </logic:equal>
+                                <logic:equal name="column" value="Birthday">
+                                    <bean:write name="customer" property="birthday" />
+                                </logic:equal>
+                                <logic:equal name="column" value="Address">
+                                    <bean:write name="customer" property="address" />
+                                </logic:equal>
+                                <logic:equal name="column" value="Email">
+                                    <bean:write name="customer" property="email" />
+                                </logic:equal>
+                            </td>
+                        </logic:iterate>
+                    </tr>
+                </logic:iterate>
+            </table>
+            <div style="padding-block: 20px; display: flex; gap: 20px">
+                <button id="addNew" type="button">Add New</button>
+                <button id="deleteButton" type="submit" name="action" value="delete">Delete</button>
+            </div>
+        </div>
+        </html:form>
+    </div>
+</body>
+</html>
+```
 https://drive.google.com/drive/folders/1bPh22WOHnfjV8E2gzLIvzQr1Bx1uL9nx?usp=drive_link
 ```
 search action
