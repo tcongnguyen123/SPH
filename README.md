@@ -1,4 +1,251 @@
 ```
+<%@ page language="java" contentType="text/html; charset=UTF-8" pageEncoding="UTF-8"%>
+<%@ taglib uri="http://java.sun.com/jsp/jstl/core" prefix="c"%>
+<%@ taglib uri="http://struts.apache.org/tags-html" prefix="html" %>
+<%@ taglib uri="/WEB-INF/struts-bean.tld" prefix="bean" %>
+<%@ taglib uri="/WEB-INF/struts-logic.tld" prefix="logic" %>
+
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Search Customers</title>
+<style type="text/css">
+    /* Add styles for jqGrid */
+    .ui-jqgrid .ui-jqgrid-btable {
+        table-layout: auto;
+    }
+    .ui-jqgrid-sortable {
+        cursor: pointer;
+    }
+    .ui-jqgrid-pager {
+        height: 25px;
+    }
+</style>
+
+<!-- Include jQuery and jqGrid library -->
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jqGrid/4.6.0/js/jquery.jqGrid.min.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/jqGrid/4.6.0/css/ui.jqgrid.min.css">
+</head>
+<body>
+    <div class="header">
+        <h1>TRAINING</h1>
+    </div>
+    <div class="container">
+        <div class="welcome_user">
+            <p>Welcome, <%=session.getAttribute("userName")%></p>
+            <a href="#">Log out</a>
+        </div>
+        <html:errors/>
+        <div class="divider"></div>
+        <html:form action="/search" method="post">
+        <div class="search">
+            <!-- Search form controls -->
+        </div>
+        <div id="grid-container">
+            <table id="customerGrid"></table>
+            <div id="pager"></div>
+        </div>
+        <div style="padding-block: 20px; display: flex; gap: 20px">
+            <button id="addNew" type="button">Add New</button>
+            <button id="deleteButton" type="submit" name="action" value="delete">Delete</button>
+        </div>
+        </html:form>
+    </div>
+
+    <script>
+        $(document).ready(function () {
+            // Initialize jqGrid
+            $("#customerGrid").jqGrid({
+                url: "<c:url value='/search?action=data'/>",
+                datatype: "json",
+                colModel: [
+                    { label: 'Customer ID', name: 'customerID', width: 100, key: true },
+                    { label: 'Customer Name', name: 'customerName', width: 200 },
+                    { label: 'Sex', name: 'sex', width: 100,
+                        formatter: function (cellvalue, options, rowObject) {
+                            return cellvalue === '0' ? 'Male' : 'Female';
+                        }
+                    },
+                    { label: 'Birthday', name: 'birthday', width: 150 },
+                    { label: 'Address', name: 'address', width: 300 },
+                    { label: 'Email', name: 'email', width: 200 }
+                ],
+                pager: '#pager',
+                rowNum: 10,
+                rowList: [10, 20, 30],
+                sortname: 'customerID',
+                sortorder: "asc",
+                viewrecords: true,
+                gridview: true,
+                caption: "Customer List"
+            });
+        });
+    </script>
+</body>
+</html>
+```
+```
+<%@ page language="java" contentType="text/html; charset=UTF-8" pageEncoding="UTF-8"%>
+<%@ taglib uri="http://java.sun.com/jsp/jstl/core" prefix="c"%>
+<%@ taglib uri="http://struts.apache.org/tags-html" prefix="html" %>
+<%@ taglib uri="/WEB-INF/struts-bean.tld" prefix="bean" %>
+<%@ taglib uri="/WEB-INF/struts-logic.tld" prefix="logic" %>
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Search Customers</title>
+    <style type="text/css">
+        body {
+            margin-left: 20px;
+            margin-right: 20px;
+            background-color: #bcffff;
+        }
+        .header {
+            border-bottom: 2px solid;
+        }
+        .header h1 {
+            color: red;
+        }
+        .divider {
+            height: 20px;
+            width: 100%;
+            background-color: #3097ff;
+        }
+        .search {
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            padding: 10px;
+            margin-top: 20px;
+            background-color: #ffff56;
+        }
+    </style>
+    
+    <!-- Thư viện jqGrid và jQuery -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/jqueryui/1.12.1/jquery-ui.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/free-jqgrid/4.15.5/css/ui.jqgrid.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jqueryui/1.12.1/jquery-ui.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/free-jqgrid/4.15.5/jquery.jqgrid.min.js"></script>
+</head>
+<body>
+    <div class="header">
+        <h1>TRAINING</h1>
+    </div>
+    <div class="container">
+        <div class="welcome_user">
+            <p>Welcome, <%=session.getAttribute("userName")%></p>
+            <a href="#">Log out</a>
+        </div>
+        <html:errors/>
+        <div class="divider"></div>
+
+        <!-- Form Tìm kiếm -->
+        <div class="search">
+            <div>
+                <label for="search">Customer Name:</label>
+                <input type="text" id="customerName" name="customerName" />
+            </div>
+            <div>
+                <label for="search">Sex:</label>
+                <select id="sex" name="sex">
+                    <option value=" "> </option>
+                    <option value="0">Male</option>
+                    <option value="1">Female</option>
+                </select>
+            </div>
+            <div style="display: flex; justify-content: center; align-items: center;">
+                <label for="search">Birthday:</label>
+                <input type="text" id="birthdayFrom" name="birthdayFrom" />
+                <p>~</p>
+                <input type="text" id="birthdayTo" name="birthdayTo" />
+            </div>
+            <button type="button" onclick="reloadGrid()">Search</button>
+            <button type="button" onclick="importCSV()">Import CSV</button>
+            <button type="button" onclick="exportCSV()">Export CSV</button>
+            <button type="button" onclick="openSettings()">SettingHeader</button>
+        </div>
+
+        <!-- jqGrid Table -->
+        <table id="customerGrid"></table>
+        <div id="customerPager"></div>
+
+        <script type="text/javascript">
+            $(document).ready(function () {
+                // Cấu hình jqGrid
+                $("#customerGrid").jqGrid({
+                	url: window.location.pathname.substring(0, window.location.pathname.indexOf("/",2)) + "/search",
+                    datatype: "json",
+                    mtype: "POST",
+                    postData: {
+                        customerName: function () { return $("#customerName").val(); },
+                        sex: function () { return $("#sex").val(); },
+                        birthdayFrom: function () { return $("#birthdayFrom").val(); },
+                        birthdayTo: function () { return $("#birthdayTo").val(); }
+                    },
+                    colNames: ["Customer ID", "Customer Name", "Sex", "Birthday", "Address", "Email"],
+                    colModel: [
+                        { name: "customerID", index: "customerID", width: 75, key: true },
+                        { name: "customerName", index: "customerName", width: 150 },
+                        { name: "sex", index: "sex", width: 80, formatter: formatSex },
+                        { name: "birthday", index: "birthday", width: 100 },
+                        { name: "address", index: "address", width: 200 },
+                        { name: "email", index: "email", width: 200 }
+                    ],
+                    pager: "#customerPager",
+                    rowNum: 10,
+                    rowList: [10, 20, 30],
+                    sortname: "customerID",
+                    sortorder: "asc",
+                    viewrecords: true,
+                    caption: "Customer List",
+                    height: "auto",
+                    autowidth: true,
+                    jsonReader: {
+                        repeatitems: false,
+                        root: "rows",
+                        page: "page",
+                        total: "total",
+                        records: "records"
+                    }
+                });
+
+                // Hàm định dạng cột Sex
+                function formatSex(cellValue) {
+                    return cellValue === "0" ? "Male" : "Female";
+                }
+
+                // Hàm tải lại lưới dữ liệu
+                window.reloadGrid = function() {
+                    $("#customerGrid").jqGrid("setGridParam", { page: 1 }).trigger("reloadGrid");
+                };
+
+                // Các hàm Import và Export CSV, mở màn hình Settings
+                window.importCSV = function() {
+                    // Viết logic import CSV tại đây
+                    alert("Import CSV function called!");
+                };
+
+                window.exportCSV = function() {
+                    // Viết logic export CSV tại đây
+                    alert("Export CSV function called!");
+                };
+
+                window.openSettings = function() {
+                    // Điều hướng đến trang cài đặt header
+                    window.location.href = "${pageContext.request.contextPath}/settingHeader.jsp";
+                };
+            });
+        </script>
+    </div>
+</body>
+</html>
+
+```
+```
 hibernate 4.
 import org.hibernate.Session;
 import org.hibernate.Transaction;
