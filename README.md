@@ -4,6 +4,294 @@
 <%@ taglib uri="http://struts.apache.org/tags-html" prefix="html" %>
 <%@ taglib uri="/WEB-INF/struts-bean.tld" prefix="bean" %>
 <%@ taglib uri="/WEB-INF/struts-logic.tld" prefix="logic" %>
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Search Customers</title>
+    <style type="text/css">
+        body {
+            margin-left: 20px;
+            margin-right: 20px;
+            background-color: #bcffff;
+        }
+        .header {
+            border-bottom: 2px solid;
+        }
+        .header h1 {
+            color: red;
+        }
+        .divider {
+            height: 20px;
+            width: 100%;
+            background-color: #3097ff;
+        }
+        .search {
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            padding: 10px;
+            margin-top: 20px;
+            background-color: #ffff56;
+        }
+    </style>
+    
+    <!-- Libraries for jqGrid and jQuery -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/jqueryui/1.12.1/jquery-ui.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/free-jqgrid/4.15.5/css/ui.jqgrid.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jqueryui/1.12.1/jquery-ui.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/free-jqgrid/4.15.5/jquery.jqgrid.min.js"></script>
+</head>
+<body>
+    <div class="header">
+        <h1>TRAINING</h1>
+    </div>
+    <div class="container">
+        <div class="search">
+		    <input type="text" id="customerName" placeholder="Customer Name">
+		    <select id="sex">
+		        <option value="">Any</option>
+		        <option value="0">Male</option>
+		        <option value="1">Female</option>
+		    </select>
+		    <input type="text" id="birthdayFrom" placeholder="Birthday From (YYYY-MM-DD)">
+		    <input type="text" id="birthdayTo" placeholder="Birthday To (YYYY-MM-DD)">
+		    <button id="searchButton">Search</button>
+		    <button id="deleteButton">Delete Selected</button>
+		</div>
+        <table id="customerGrid"></table>
+        <div id="customerPager"></div>
+
+<script type="text/javascript">
+    $(document).ready(function () {
+        $("#customerGrid").jqGrid({
+            url: window.location.pathname.substring(0, window.location.pathname.indexOf("/", 2)) + "/search.do",
+            datatype: "json",
+            mtype: "POST",
+            postData: function() {
+                return {
+                    customerName: $("#customerName").val(),
+                    sex: $("#sex").val(),
+                    birthdayFrom: $("#birthdayFrom").val(),
+                    birthdayTo: $("#birthdayTo").val()
+                };
+            },
+            colNames: ["Select", "Customer ID", "Customer Name", "Sex", "Birthday", "Address", "Email"],
+            colModel: [
+                { name: "select", index: "select", width: 50, align: "center", formatter: "checkbox", formatoptions: { disabled: false }},
+                { name: "customerID", index: "customerID", width: 75, key: true },
+                { name: "customerName", index: "customerName", width: 150 },
+                { name: "sex", index: "sex", width: 80, formatter: formatSex },
+                { name: "birthday", index: "birthday", width: 100 },
+                { name: "address", index: "address", width: 200 },
+                { name: "email", index: "email", width: 200 }
+            ],
+            pager: "#customerPager",
+            rowNum: 10,
+            rowList: [10, 20, 30],
+            sortname: "customerID",
+            sortorder: "asc",
+            viewrecords: true,
+            caption: "Customer List",
+            height: "auto",
+            autowidth: true,
+            multiselect: true, // Enable multiple row selection
+            jsonReader: {
+                repeatitems: false,
+                root: "rows",
+                page: "page",
+                total: "total",
+                records: "records"
+            }
+        });
+
+        // Search button functionality
+        $("#searchButton").click(function () {
+            $("#customerGrid").jqGrid('setGridParam', {
+                page: 1,
+                postData: {
+                    customerName: $("#customerName").val(),
+                    sex: $("#sex").val(),
+                    birthdayFrom: $("#birthdayFrom").val(),
+                    birthdayTo: $("#birthdayTo").val()
+                }
+            }).trigger("reloadGrid");
+        });
+
+        // Delete button functionality
+        $("#deleteButton").click(function () {
+            const selectedIds = $("#customerGrid").jqGrid('getGridParam', 'selarrrow');
+            if (selectedIds.length === 0) {
+                alert("Please select at least one customer to delete.");
+                return;
+            }
+
+            if (confirm("Are you sure you want to delete the selected customers?")) {
+                $.ajax({
+                    url: window.location.pathname.substring(0, window.location.pathname.indexOf("/", 2)) + "/delete.do",
+                    type: "POST",
+                    data: { customerIds: selectedIds },
+                    success: function(response) {
+                        alert("Selected customers have been deleted successfully.");
+                        $("#customerGrid").trigger("reloadGrid");
+                    },
+                    error: function() {
+                        alert("An error occurred while deleting the customers.");
+                    }
+                });
+            }
+        });
+
+        // Formatter for Sex column
+        function formatSex(cellValue) {
+            return cellValue === "0" ? "Male" : "Female";
+        }
+    });
+</script>
+
+    </div>
+</body>
+</html>
+
+```
+```
+<%@ page language="java" contentType="text/html; charset=UTF-8" pageEncoding="UTF-8"%>
+<%@ taglib uri="http://java.sun.com/jsp/jstl/core" prefix="c"%>
+<%@ taglib uri="http://struts.apache.org/tags-html" prefix="html" %>
+<%@ taglib uri="/WEB-INF/struts-bean.tld" prefix="bean" %>
+<%@ taglib uri="/WEB-INF/struts-logic.tld" prefix="logic" %>
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Search Customers</title>
+    <style type="text/css">
+        body {
+            margin-left: 20px;
+            margin-right: 20px;
+            background-color: #bcffff;
+        }
+        .header {
+            border-bottom: 2px solid;
+        }
+        .header h1 {
+            color: red;
+        }
+        .divider {
+            height: 20px;
+            width: 100%;
+            background-color: #3097ff;
+        }
+        .search {
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            padding: 10px;
+            margin-top: 20px;
+            background-color: #ffff56;
+        }
+    </style>
+    
+    <!-- Thư viện jqGrid và jQuery -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/jqueryui/1.12.1/jquery-ui.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/free-jqgrid/4.15.5/css/ui.jqgrid.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jqueryui/1.12.1/jquery-ui.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/free-jqgrid/4.15.5/jquery.jqgrid.min.js"></script>
+</head>
+<body>
+    <div class="header">
+        <h1>TRAINING</h1>
+    </div>
+    <div class="container">
+        <!-- jqGrid Table -->
+        <div class="search">
+		    <input type="text" id="customerName" placeholder="Customer Name">
+		    <select id="sex">
+		        <option value="">Any</option>
+		        <option value="0">Male</option>
+		        <option value="1">Female</option>
+		    </select>
+		    <input type="text" id="birthdayFrom" placeholder="Birthday From (YYYY-MM-DD)">
+		    <input type="text" id="birthdayTo" placeholder="Birthday To (YYYY-MM-DD)">
+		    <button id="searchButton">Search</button>
+		</div>
+        <table id="customerGrid"></table>
+        <div id="customerPager"></div>
+
+<script type="text/javascript">
+    $(document).ready(function () {
+        $("#customerGrid").jqGrid({
+            url: window.location.pathname.substring(0, window.location.pathname.indexOf("/", 2)) + "/search.do",
+            datatype: "json",
+            mtype: "POST",
+            postData: function() {
+                return {
+                    customerName: $("#customerName").val(),
+                    sex: $("#sex").val(),
+                    birthdayFrom: $("#birthdayFrom").val(),
+                    birthdayTo: $("#birthdayTo").val()
+                };
+            },
+            colNames: ["Customer ID", "Customer Name", "Sex", "Birthday", "Address", "Email"],
+            colModel: [
+                { name: "customerID", index: "customerID", width: 75, key: true },
+                { name: "customerName", index: "customerName", width: 150 },
+                { name: "sex", index: "sex", width: 80, formatter: formatSex },
+                { name: "birthday", index: "birthday", width: 100 },
+                { name: "address", index: "address", width: 200 },
+                { name: "email", index: "email", width: 200 }
+            ],
+            pager: "#customerPager",
+            rowNum: 10,
+            rowList: [10, 20, 30],
+            sortname: "customerID",
+            sortorder: "asc",
+            viewrecords: true,
+            caption: "Customer List",
+            height: "auto",
+            autowidth: true,
+            jsonReader: {
+                repeatitems: false,
+                root: "rows",
+                page: "page",
+                total: "total",
+                records: "records"
+            }
+        });
+
+        // Trigger search on input change or button click
+        $("#searchButton").click(function () {
+            $("#customerGrid").jqGrid('setGridParam', {
+                page: 1,
+                postData: {
+                    customerName: $("#customerName").val(),
+                    sex: $("#sex").val(),
+                    birthdayFrom: $("#birthdayFrom").val(),
+                    birthdayTo: $("#birthdayTo").val()
+                }
+            }).trigger("reloadGrid");
+        });
+
+        // Formatter for Sex column
+        function formatSex(cellValue) {
+            return cellValue === "0" ? "Male" : "Female";
+        }
+    });
+</script>
+
+    </div>
+</body>
+</html>
+
+```
+```
+<%@ page language="java" contentType="text/html; charset=UTF-8" pageEncoding="UTF-8"%>
+<%@ taglib uri="http://java.sun.com/jsp/jstl/core" prefix="c"%>
+<%@ taglib uri="http://struts.apache.org/tags-html" prefix="html" %>
+<%@ taglib uri="/WEB-INF/struts-bean.tld" prefix="bean" %>
+<%@ taglib uri="/WEB-INF/struts-logic.tld" prefix="logic" %>
 
 <!DOCTYPE html>
 <html>
