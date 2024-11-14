@@ -1,4 +1,497 @@
 ```
+<%@ taglib uri="http://struts.apache.org/tags-html" prefix="html" %>
+<%@ taglib uri="http://java.sun.com/jsp/jstl/core" prefix="c" %>
+<%@ taglib uri="/WEB-INF/struts-bean.tld" prefix="bean" %>
+<html>
+<head>
+    <title>Setting Header</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/jqgrid/5.3.1/css/ui.jqgrid.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jqgrid/5.3.1/js/jquery.jqgrid.min.js"></script>
+    <script>
+        $(document).ready(function () {
+            function loadColumns() {
+                $.ajax({
+                    url: '<c:url value="/upload.do?action=save" />',
+                    method: 'GET',
+                    dataType: 'json',
+                    success: function (data) {
+                        // Load các cột đã chọn và chưa chọn vào jqGrid
+                        $("#selectedGrid").jqGrid('clearGridData').jqGrid('setGridParam', { data: data.selectedColumns }).trigger('reloadGrid');
+                        $("#availableGrid").jqGrid('clearGridData').jqGrid('setGridParam', { data: data.availableColumns }).trigger('reloadGrid');
+                    }
+                });
+            }
+
+            // Khởi tạo jqGrid cho cột đã chọn
+            $("#selectedGrid").jqGrid({
+                datatype: 'local',
+                colNames: ['Selected Columns'],
+                colModel: [{ name: 'column', index: 'column', width: 200 }],
+                height: 200,
+                viewrecords: true,
+                caption: "Selected Columns",
+                onSelectRow: toggleMoveButtons
+            });
+
+            // Khởi tạo jqGrid cho cột chưa chọn
+            $("#availableGrid").jqGrid({
+                datatype: 'local',
+                colNames: ['Available Columns'],
+                colModel: [{ name: 'column', index: 'column', width: 200 }],
+                height: 200,
+                viewrecords: true,
+                caption: "Available Columns",
+                onSelectRow: toggleMoveButtons
+            });
+
+            // Nạp dữ liệu ban đầu
+            loadColumns();
+
+            // Các chức năng di chuyển cột
+            $("#moveRightButton").click(function () {
+                moveColumn("availableGrid", "selectedGrid");
+            });
+
+            $("#moveLeftButton").click(function () {
+                moveColumn("selectedGrid", "availableGrid");
+            });
+
+            function moveColumn(fromGrid, toGrid) {
+                var selRowId = $("#" + fromGrid).jqGrid('getGridParam', 'selrow');
+                if (selRowId) {
+                    var columnData = $("#" + fromGrid).jqGrid('getRowData', selRowId);
+                    $("#" + toGrid).jqGrid('addRowData', selRowId, columnData);
+                    $("#" + fromGrid).jqGrid('delRowData', selRowId);
+                }
+            }
+
+            // Lưu cấu hình cột
+            $("#saveButton").click(function () {
+                var selectedColumns = $("#selectedGrid").jqGrid('getRowData').map(row => row.column).join(',');
+                $.post('<c:url value="/upload.do?action=save" />', { selectedColumns: selectedColumns }, function () {
+                    alert("Columns saved successfully!");
+                });
+            });
+        });
+    </script>
+</head>
+<body>
+    <h2>Manage Search Screen Columns</h2>
+    <html:form>
+        <div style="display: flex; gap: 10px;">
+            <table id="availableGrid"></table>
+            <div style="display: flex; flex-direction: column; gap: 5px; justify-content: center;">
+                <button type="button" id="moveRightButton">→</button>
+                <button type="button" id="moveLeftButton">←</button>
+            </div>
+            <table id="selectedGrid"></table>
+        </div>
+        <br>
+        <button type="button" id="saveButton">Save</button>
+    </html:form>
+</body>
+</html>
+
+```
+```
+import com.google.gson.Gson;
+import com.google.gson.JsonObject;
+import javax.servlet.http.HttpServletResponse;
+// import các thư viện cần thiết
+
+public class UploadAction extends Action {
+    private SearchDao searchDao;
+
+    public void setSearchDao(SearchDao searchDao) {
+        this.searchDao = searchDao;
+    }
+
+    public ActionForward execute(ActionMapping mapping, ActionForm form,
+                                 HttpServletRequest request, HttpServletResponse response) throws Exception {
+        // Danh sách tất cả các cột
+        String[] allColumns = {"Customer ID", "Customer Name", "Sex", "Birthday", "Address", "Email"};
+        String selectedColumns = request.getParameter("selectedColumns");
+        String action = request.getParameter("action");
+
+        // Khởi tạo JSON để gửi về
+        Gson gson = new Gson();
+        JsonObject jsonResponse = new JsonObject();
+
+        if ("save".equals(action)) {
+            // Xử lý lưu các cột đã chọn
+            List<String> selectedList = selectedColumns != null ? Arrays.asList(selectedColumns.split(",")) : new ArrayList<>();
+            List<String> availableList = new ArrayList<>();
+
+            // Xác định các cột chưa chọn
+            for (String column : allColumns) {
+                if (!selectedList.contains(column)) {
+                    availableList.add(column);
+                }
+            }
+
+            // Đặt danh sách cột vào JSON để trả về cho jqGrid
+            jsonResponse.add("selectedColumns", gson.toJsonTree(selectedList));
+            jsonResponse.add("availableColumns", gson.toJsonTree(availableList));
+
+            // Cấu hình response là JSON
+            response.setContentType("application/json");
+            response.getWriter().write(gson.toJson(jsonResponse));
+            return null; // Không chuyển tiếp tới trang khác
+        }
+
+        // Trả về màn hình Setting Header nếu không phải lưu cột
+        return mapping.findForward("settingHeader");
+    }
+}
+
+```
+```
+package fjs.cs.action;
+
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.List;
+
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import javax.servlet.http.HttpSession;
+
+import org.apache.struts.action.Action;
+import org.apache.struts.action.ActionForm;
+import org.apache.struts.action.ActionForward;
+import org.apache.struts.action.ActionMapping;
+import org.apache.struts.action.ActionMessage;
+import org.apache.struts.action.ActionMessages;
+
+import com.google.gson.Gson;
+
+import fjs.cs.dao.SearchDao;
+import fjs.cs.dto.CustomerDto;
+import fjs.cs.form.SearchForm;
+
+public class SearchAction extends Action {
+    
+    private SearchDao searchDao;
+	
+    public void setSearchDao(SearchDao searchDao) {
+        this.searchDao = searchDao;
+    }
+//    private SearchLogic searchLogic;
+//	
+//    public void setSearchLogic(SearchLogic searchLogic) {
+//        this.searchLogic = searchLogic;
+//    }
+    public ActionForward execute(ActionMapping mapping, ActionForm form,
+            HttpServletRequest request, HttpServletResponse response) {
+		HttpSession session = request.getSession();
+		
+		String[] defaultColumns = {"Customer ID", "Customer Name", "Sex", "Birthday", "Address","Email"};
+		session.setAttribute("selectedColumns", defaultColumns);
+		Gson gsons = new Gson();
+		String jsons = gsons.toJson(session.getAttribute("selectedColumns"));
+		request.setAttribute("t", jsons);
+		System.out.println(jsons);
+		SearchForm searchForm = (SearchForm) form;
+		String customerName = searchForm.getCustomerName();
+		String sex = searchForm.getSex();
+		String fromBirthday = searchForm.getBirthdayFrom();
+		String toBirthday = searchForm.getBirthdayTo();
+		ActionMessages errors = new ActionMessages();
+		String action = request.getParameter("action");
+		
+		String sessionCustomerName = (String) session.getAttribute("lastValidCustomerName");
+		String sessionSex = (String) session.getAttribute("lastValidSex");
+		String sessionFromBirthday = (String) session.getAttribute("lastValidFromBirthday");
+		String sessionToBirthday = (String) session.getAttribute("lastValidToBirthday");
+		
+		List<CustomerDto> customerList;
+
+
+		customerList = searchDao.searchCustomers(sessionCustomerName, sessionSex, sessionFromBirthday, sessionToBirthday);
+		
+		
+		int PAGE_SIZE = 2;
+		String pageStr = request.getParameter("page");
+		Integer currentPage = 1;
+		if (pageStr != null) {
+		currentPage = Integer.parseInt(pageStr);
+		}
+		if (currentPage == null || currentPage < 1) {
+		currentPage = 1;
+		}
+		
+		int startRow = (currentPage - 1) * PAGE_SIZE;
+		int totalCustomers = customerList.size();
+		int totalPages = (int) Math.ceil((double) totalCustomers / PAGE_SIZE);
+		
+		List<CustomerDto> paginatedList = customerList.subList(
+		Math.min(startRow, totalCustomers),
+		Math.min(startRow + PAGE_SIZE, totalCustomers)
+		);
+		Gson gson = new Gson();
+		String json = gson.toJson(customerList);
+		request.setAttribute("test", json);
+		
+		session.setAttribute("customerList", paginatedList);
+		session.setAttribute("currentPage", currentPage);
+		session.setAttribute("totalPages", totalPages);
+		
+		// Lưu lại các giá trị tìm kiếm để hiển thị trên form
+		searchForm.setCustomerName(sessionCustomerName);
+		searchForm.setSex(sessionSex);
+		searchForm.setBirthdayFrom(sessionFromBirthday);
+		searchForm.setBirthdayTo(sessionToBirthday);
+		
+		return mapping.findForward("search");
+		}
+
+}
+```
+```
+<%@ page language="java" contentType="text/html; charset=UTF-8" pageEncoding="UTF-8"%>
+<%@ taglib uri="http://java.sun.com/jsp/jstl/core" prefix="c"%>
+<%@ taglib uri="http://struts.apache.org/tags-html" prefix="html" %>
+<%@ taglib uri="/WEB-INF/struts-bean.tld" prefix="bean" %>
+<%@ taglib uri="/WEB-INF/struts-logic.tld" prefix="logic" %>
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Search Customers</title>
+    <style type="text/css">
+        body {
+            margin-left: 20px;
+            margin-right: 20px;
+            background-color: #bcffff;
+        }
+        .header {
+            border-bottom: 2px solid;
+        }
+        .header h1 {
+            color: red;
+        }
+        .divider {
+            height: 20px;
+            width: 100%;
+            background-color: #3097ff;
+        }
+        .search {
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            padding: 10px;
+            margin-top: 20px;
+            background-color: #ffff56;
+        }
+		table {
+		    width: 100%;
+		    border-collapse: collapse;
+		    table-layout :fixed;
+		    border :  1px solid green;
+		}
+		#gbox_customerGrid {
+			border :  2px solid green;
+			border-collapse: collapse;
+		}
+		th,
+		td {
+		    padding: 8px;
+		    text-align: left;
+		    border-bottom: 1px solid #ddd;
+		}
+		th {
+		    background-color: #f2f2f2;
+		}
+		tr:first-child > th {
+		    background-color: rgb(0, 223, 0);
+		    
+		}
+		tr:nth-child(even) {
+		    background-color: #f2f2f2;
+		}
+    </style>
+    
+    <!-- Libraries for jqGrid and jQuery -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/jqueryui/1.12.1/jquery-ui.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/free-jqgrid/4.15.5/css/ui.jqgrid.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jqueryui/1.12.1/jquery-ui.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/free-jqgrid/4.15.5/jquery.jqgrid.min.js"></script>
+</head>
+<body>
+    <div class="header">
+        <h1>TRAINING</h1>
+    </div>
+    <div class="container">
+<div class="search">
+    <input type="text" id="customerName" placeholder="Customer Name">
+    <select id="sex">
+        <option value="">Any</option>
+        <option value="0">Male</option>
+        <option value="1">Female</option>
+    </select>
+    <input type="text" id="birthdayFrom" placeholder="Birthday From (YYYY-MM-DD)">
+    <input type="text" id="birthdayTo" placeholder="Birthday To (YYYY-MM-DD)">
+    <button id="searchButton">Search</button>
+    <button id="deleteButton">Delete Selected</button>
+    <button id="firstPageButton">First &lt;&lt;</button>
+    <button id="previousPageButton">Previous &lt;</button>
+    <button id="nextPageButton">Next &gt;</button>
+    <button id="lastPageButton">Last &gt;&gt;</button>
+    <button id="settingHeaderButton">Setting Header</button>
+</div>
+<div></div>
+<table id="customerGrid"></table>
+<div id="customerPager" style="display:none"></div>
+<script type="text/javascript">
+    $(document).ready(function () {
+    	var selectedColumns = ${t};
+    	console.log(selectedColumns);
+        $("#customerGrid").jqGrid({
+            data: ${test},
+            datatype: "local",
+            mtype: "POST",
+            postData: function() {
+                return {
+                    customerName: $("#customerName").val(),
+                    sex: $("#sex").val(),
+                    birthdayFrom: $("#birthdayFrom").val(),
+                    birthdayTo: $("#birthdayTo").val()
+                };
+            },
+            colNames: selectedColumns,
+            colModel: [
+                { name: "customerID", index: "customerID", width: 75, key: true },
+                { name: "customerName", index: "customerName", width: 150 },
+                { name: "sex", index: "sex", width: 80, formatter: formatSex },
+                { name: "birthday", index: "birthday", width: 100 },
+                { name: "address", index: "address", width: 200 },
+                { name: "email", index: "email", width: 200 }
+            ],
+            pager: "#customerPager",
+            rowNum: 10,
+            sortname: "customerID",
+            sortorder: "asc",
+            viewrecords: true,
+            height: "auto",
+            autowidth: true,
+            multiselect: true, // Enable multiple row selection
+             // Enable alternate row colors // Apply the custom class for alternate rows
+            jsonReader: {
+                repeatitems: false,
+                root: "rows",
+                page: "page",
+                total: "total",
+                records: "records"
+            },
+            gridComplete: function () {
+                updatePaginationButtons();
+            }
+        });
+        // Kiểm tra trạng thái các nút phân trang
+        function updatePaginationButtons() {
+            const currentPage = $("#customerGrid").jqGrid("getGridParam", "page");
+            const lastPage = $("#customerGrid").jqGrid("getGridParam", "lastpage");
+
+            // Disable nút Previous nếu ở trang đầu tiên
+            $("#previousPageButton").prop("disabled", currentPage <= 1);
+            $("#firstPageButton").prop("disabled", currentPage <= 1);
+            // Disable nút Next nếu ở trang cuối cùng
+            $("#nextPageButton").prop("disabled", currentPage >= lastPage);
+            $("#lastPageButton").prop("disabled", currentPage >= lastPage);
+        }
+
+        // Gọi hàm updatePaginationButtons sau mỗi lần phân trang
+        $("#customerGrid").jqGrid("setGridParam", {
+            onPaging: function () {
+                setTimeout(updatePaginationButtons, 100); // Delay ngắn để cập nhật sau khi phân trang
+            }
+        });
+        // Search button functionality
+        $("#searchButton").click(function () {
+            $("#customerGrid").jqGrid('setGridParam', {
+                page: 1,
+                postData: {
+                    customerName: $("#customerName").val(),
+                    sex: $("#sex").val(),
+                    birthdayFrom: $("#birthdayFrom").val(),
+                    birthdayTo: $("#birthdayTo").val()
+                }
+            }).trigger("reloadGrid");
+        });
+
+        // Delete button functionality
+        $("#deleteButton").click(function () {
+            const selectedIds = $("#customerGrid").jqGrid('getGridParam', 'selarrrow');
+            if (selectedIds.length === 0) {
+                alert("Please select at least one customer to delete.");
+                return;
+            }
+
+            if (confirm("Are you sure you want to delete the selected customers?")) {
+                $.ajax({
+                    url: window.location.pathname.substring(0, window.location.pathname.indexOf("/", 2)) + "/delete.do",
+                    type: "POST",
+                    data: { customerIds: selectedIds },
+                    success: function(response) {
+                        alert("Selected customers have been deleted successfully.");
+                        $("#customerGrid").trigger("reloadGrid");
+                    },
+                    error: function() {
+                        alert("An error occurred while deleting the customers.");
+                    }
+                });
+            }
+            
+        });
+
+        // Pagination controls
+        $("#firstPageButton").click(function () {
+            $("#customerGrid").jqGrid("setGridParam", { page: 1 }).trigger("reloadGrid");
+        });
+
+        $("#previousPageButton").click(function () {
+            const currentPage = $("#customerGrid").jqGrid("getGridParam", "page");
+            if (currentPage > 1) {
+                $("#customerGrid").jqGrid("setGridParam", { page: currentPage - 1 }).trigger("reloadGrid");
+            }
+        });
+
+        $("#nextPageButton").click(function () {
+            const currentPage = $("#customerGrid").jqGrid("getGridParam", "page");
+            const lastPage = $("#customerGrid").jqGrid("getGridParam", "lastpage");
+            if (currentPage < lastPage) {
+                $("#customerGrid").jqGrid("setGridParam", { page: currentPage + 1 }).trigger("reloadGrid");
+            }
+        });
+
+        $("#lastPageButton").click(function () {
+            const lastPage = $("#customerGrid").jqGrid("getGridParam", "lastpage");
+            $("#customerGrid").jqGrid("setGridParam", { page: lastPage }).trigger("reloadGrid");
+        });
+
+        // Formatter for Sex column
+        function formatSex(cellValue) {
+            return cellValue === "0" ? "Male" : "Female";
+        }
+        $("#settingHeaderButton").click(function () {
+            window.location.href = window.location.pathname.substring(0, window.location.pathname.indexOf("/", 2)) + "/upload.do";
+        });
+        console.log("${selectedColumns}")
+    });
+</script>
+
+
+    </div>
+</body>
+</html>
+
+```
+------ NEW DAY
+
+```
 <%@ page language="java" contentType="text/html; charset=UTF-8" pageEncoding="UTF-8"%>
 <%@ taglib uri="http://java.sun.com/jsp/jstl/core" prefix="c"%>
 <%@ taglib uri="http://struts.apache.org/tags-html" prefix="html" %>
