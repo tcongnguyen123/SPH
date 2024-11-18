@@ -1,3 +1,515 @@
+```
+<script type="text/javascript">
+    $(document).ready(function () {
+        var selectedColumns = ${t}; // Danh sách cột đã chọn
+        console.log("Selected Columns: ", selectedColumns);
+
+        // Định nghĩa colModel
+        const columnMapping = {
+            "Customer ID": {
+                name: "customerID",
+                index: "customerID",
+                width: 75,
+                key: true,
+                formatter: "showlink",
+                formatoptions: {
+                    baseLinkUrl: "edit.do",
+                    idName: "id"
+                }
+            },
+            "Customer Name": { name: "customerName", index: "customerName", width: 150 },
+            "Sex": { name: "sex", index: "sex", width: 80, formatter: formatSex },
+            "Birthday": { name: "birthday", index: "birthday", width: 100 },
+            "Address": { name: "address", index: "address", width: 200 },
+            "Email": { name: "email", index: "email", width: 200 }
+        };
+
+        var colNames = selectedColumns;
+        var colModel = selectedColumns.map(column => columnMapping[column]);
+
+        // Biến để lưu trạng thái sắp xếp nhiều cột
+        var sortColumns = []; // Danh sách cột
+        var sortOrders = [];  // Danh sách thứ tự sắp xếp
+
+        // Tạo jqGrid với multisort
+        $("#customerGrid").jqGrid({
+            data: ${test},
+            datatype: "local",
+            colNames: colNames,
+            colModel: colModel,
+            pager: "#customerPager",
+            rowNum: 10,
+            multiSort: true, // Kích hoạt multisort
+            viewrecords: true,
+            height: "auto",
+            autowidth: true,
+            multiselect: true,
+            jsonReader: {
+                repeatitems: false,
+                root: "rows",
+                page: "page",
+                total: "total",
+                records: "records"
+            },
+            gridComplete: function () {
+                updatePaginationButtons(); // Cập nhật trạng thái nút phân trang
+            },
+            onSortCol: function (index, order) {
+                // Lưu trạng thái multisort
+                const colIndex = sortColumns.indexOf(index);
+                if (colIndex !== -1) {
+                    // Nếu cột đã tồn tại, cập nhật thứ tự sắp xếp
+                    sortOrders[colIndex] = order;
+                } else {
+                    // Nếu cột chưa tồn tại, thêm cột mới
+                    sortColumns.push(index);
+                    sortOrders.push(order);
+                }
+            }
+        });
+
+        // Cập nhật trạng thái các nút phân trang
+        function updatePaginationButtons() {
+            const currentPage = $("#customerGrid").jqGrid("getGridParam", "page");
+            const lastPage = $("#customerGrid").jqGrid("getGridParam", "lastpage");
+
+            $("#previousPageButton").prop("disabled", currentPage <= 1);
+            $("#firstPageButton").prop("disabled", currentPage <= 1);
+            $("#nextPageButton").prop("disabled", currentPage >= lastPage);
+            $("#lastPageButton").prop("disabled", currentPage >= lastPage);
+        }
+
+        // Chuyển trang giữ trạng thái multisort
+        $("#firstPageButton").click(function () {
+            $("#customerGrid").jqGrid("setGridParam", {
+                page: 1,
+                sortname: sortColumns.join(","), // Nối danh sách cột
+                sortorder: sortOrders.join(",") // Nối danh sách thứ tự sắp xếp
+            }).trigger("reloadGrid");
+        });
+
+        $("#previousPageButton").click(function () {
+            const currentPage = $("#customerGrid").jqGrid("getGridParam", "page");
+            if (currentPage > 1) {
+                $("#customerGrid").jqGrid("setGridParam", {
+                    page: currentPage - 1,
+                    sortname: sortColumns.join(","),
+                    sortorder: sortOrders.join(",")
+                }).trigger("reloadGrid");
+            }
+        });
+
+        $("#nextPageButton").click(function () {
+            const currentPage = $("#customerGrid").jqGrid("getGridParam", "page");
+            const lastPage = $("#customerGrid").jqGrid("getGridParam", "lastpage");
+            if (currentPage < lastPage) {
+                $("#customerGrid").jqGrid("setGridParam", {
+                    page: currentPage + 1,
+                    sortname: sortColumns.join(","),
+                    sortorder: sortOrders.join(",")
+                }).trigger("reloadGrid");
+            }
+        });
+
+        $("#lastPageButton").click(function () {
+            const lastPage = $("#customerGrid").jqGrid("getGridParam", "lastpage");
+            $("#customerGrid").jqGrid("setGridParam", {
+                page: lastPage,
+                sortname: sortColumns.join(","),
+                sortorder: sortOrders.join(",")
+            }).trigger("reloadGrid");
+        });
+
+        // Formatter cho cột "Sex"
+        function formatSex(cellValue) {
+            return cellValue === "0" ? "Male" : "Female";
+        }
+
+        // Nút cài đặt header
+        $("#settingHeaderButton").click(function () {
+            window.location.href = window.location.pathname.substring(0, window.location.pathname.indexOf("/", 2)) + "/upload.do";
+        });
+
+        console.log("${selectedColumns}");
+    });
+</script>
+
+```
+```
+$(document).ready(function () {
+    $("#customerGrid").jqGrid({
+        url: 'search.do', // Endpoint server xử lý
+        datatype: "json", // Dữ liệu trả về từ server dạng JSON
+        mtype: "GET", // GET hoặc POST tùy thuộc vào server
+        colNames: ["Customer ID", "Customer Name", "Sex", "Birthday", "Address", "Email"],
+        colModel: [
+            { name: "customerID", index: "customerID", width: 75, key: true },
+            { name: "customerName", index: "customerName", width: 150 },
+            { name: "sex", index: "sex", width: 80, formatter: formatSex },
+            { name: "birthday", index: "birthday", width: 100 },
+            { name: "address", index: "address", width: 200 },
+            { name: "email", index: "email", width: 200 }
+        ],
+        pager: "#customerPager",
+        rowNum: 10, // Số dòng trên mỗi trang
+        rowList: [10, 20, 30], // Tùy chọn số dòng
+        sortname: "customerID",
+        sortorder: "asc",
+        viewrecords: true,
+        height: "auto",
+        autowidth: true,
+        multiselect: true, // Cho phép chọn nhiều dòng
+        jsonReader: {
+            root: "rows",
+            page: "page",
+            total: "total",
+            records: "records",
+            repeatitems: false,
+            id: "customerID"
+        },
+        caption: "Customer List"
+    });
+
+    function formatSex(cellValue) {
+        return cellValue === "0" ? "Male" : "Female";
+    }
+
+    $("#searchButton").click(function () {
+        const searchParams = {
+            customerName: $("#customerName").val(),
+            sex: $("#sex").val(),
+            birthdayFrom: $("#birthdayFrom").val(),
+            birthdayTo: $("#birthdayTo").val()
+        };
+
+        $("#customerGrid").jqGrid("setGridParam", {
+            url: 'search.do',
+            datatype: "json",
+            postData: searchParams, // Gửi tham số tìm kiếm
+            page: 1 // Quay về trang đầu tiên
+        }).trigger("reloadGrid");
+    });
+});
+
+```
+```
+public class SearchAction extends Action {
+    private SearchDao searchDao;
+
+    public void setSearchDao(SearchDao searchDao) {
+        this.searchDao = searchDao;
+    }
+
+    @Override
+    public ActionForward execute(ActionMapping mapping, ActionForm form,
+                                 HttpServletRequest request, HttpServletResponse response) throws Exception {
+        String customerName = request.getParameter("customerName");
+        String sex = request.getParameter("sex");
+        String fromBirthday = request.getParameter("birthdayFrom");
+        String toBirthday = request.getParameter("birthdayTo");
+
+        int page = Integer.parseInt(request.getParameter("page"));
+        int rows = Integer.parseInt(request.getParameter("rows"));
+
+        List<CustomerDto> customerList = searchDao.searchCustomers(customerName, sex, fromBirthday, toBirthday);
+
+        // Pagination logic
+        int totalRecords = customerList.size();
+        int totalPages = (int) Math.ceil((double) totalRecords / rows);
+
+        int startRow = (page - 1) * rows;
+        List<CustomerDto> paginatedList = customerList.subList(
+            Math.min(startRow, totalRecords),
+            Math.min(startRow + rows, totalRecords)
+        );
+
+        // Convert to jqGrid JSON format
+        Gson gson = new Gson();
+        String json = gson.toJson(new jqGridResult(totalRecords, totalPages, page, paginatedList));
+
+        response.setContentType("application/json");
+        response.getWriter().write(json);
+
+        return null; // Vì đây là AJAX, không cần điều hướng
+    }
+}
+	
+```
+```
+public class jqGridResult {
+    private int total; // Tổng số trang
+    private int page; // Trang hiện tại
+    private int records; // Tổng số bản ghi
+    private List<?> rows; // Dữ liệu từng dòng
+
+    public jqGridResult(int records, int total, int page, List<?> rows) {
+        this.records = records;
+        this.total = total;
+        this.page = page;
+        this.rows = rows;
+    }
+
+    // Getters và Setters
+}
+
+```
+```
+$("#customerGrid").jqGrid({
+    // ... các cấu hình khác
+    onSortCol: function (index, iCol, sortorder) {
+        // Lưu trạng thái sort vào sessionStorage (hoặc localStorage)
+        const sortState = {
+            sortColumn: index,
+            sortOrder: sortorder
+        };
+        sessionStorage.setItem("gridSortState", JSON.stringify(sortState));
+    },
+});
+
+String sortColumn = request.getParameter("sidx");
+String sortOrder = request.getParameter("sord");
+
+// Sử dụng sortColumn và sortOrder trong truy vấn database
+List<CustomerDto> sortedList = searchDao.searchCustomersSorted(customerName, sex, fromBirthday, toBirthday, sortColumn, sortOrder);
+String lastSortColumn = (String) session.getAttribute("lastSortColumn");
+String lastSortOrder = (String) session.getAttribute("lastSortOrder");
+
+// Gửi giá trị này về JSP hoặc sử dụng trong logic backend.
+String sortColumn = request.getParameter("sidx"); // Cột sắp xếp
+String sortOrder = request.getParameter("sord"); // Hướng sắp xếp
+
+// Lưu vào session
+session.setAttribute("lastSortColumn", sortColumn);
+session.setAttribute("lastSortOrder", sortOrder);
+$(document).ready(function () {
+    // Kiểm tra nếu đã lưu trạng thái sort
+    const savedSortState = JSON.parse(sessionStorage.getItem("gridSortState"));
+    let sortColumn = "customerID"; // Mặc định cột sắp xếp
+    let sortOrder = "asc"; // Mặc định hướng sắp xếp
+
+    if (savedSortState) {
+        sortColumn = savedSortState.sortColumn;
+        sortOrder = savedSortState.sortOrder;
+    }
+
+    // Khởi tạo jqGrid
+    $("#customerGrid").jqGrid({
+        // ... các cấu hình khác
+        sortname: sortColumn, // Cột để sắp xếp
+        sortorder: sortOrder, // Hướng sắp xếp
+    });
+});
+
+```
+```
+$("#customerGrid").jqGrid({
+    // Các cấu hình khác
+    sortname: "customerID", // Giá trị mặc định
+    sortorder: "asc",       // Giá trị mặc định
+    onSortCol: function (index, sortorder) {
+        sortColumn = index;
+        sortOrder = sortorder;
+    },
+});
+$(document).ready(function () {
+    let sortColumn = "customerID"; // Cột mặc định để sắp xếp
+    let sortOrder = "asc";        // Thứ tự mặc định
+
+    // Khi người dùng thay đổi trạng thái sắp xếp
+    $("#customerGrid").on("sortCol", function (e, index, sortorder) {
+        sortColumn = index;
+        sortOrder = sortorder;
+    });
+
+    // Cập nhật trạng thái sắp xếp khi load lại grid
+    function reloadGridWithSort() {
+        $("#customerGrid").jqGrid("setGridParam", {
+            sortname: sortColumn,
+            sortorder: sortOrder,
+        }).trigger("reloadGrid");
+    }
+
+    // Cập nhật các nút phân trang
+    function updatePaginationButtons() {
+        const currentPage = $("#customerGrid").jqGrid("getGridParam", "page");
+        const lastPage = $("#customerGrid").jqGrid("getGridParam", "lastpage");
+        $("#previousPageButton").prop("disabled", currentPage <= 1);
+        $("#firstPageButton").prop("disabled", currentPage <= 1);
+        $("#nextPageButton").prop("disabled", currentPage >= lastPage);
+        $("#lastPageButton").prop("disabled", currentPage >= lastPage);
+    }
+
+    // Khi phân trang, giữ trạng thái sắp xếp
+    $("#customerGrid").jqGrid("setGridParam", {
+        onPaging: function () {
+            setTimeout(function () {
+                reloadGridWithSort();
+                updatePaginationButtons();
+            }, 100);
+        }
+    });
+
+    // Thêm các nút điều hướng và gọi reloadGridWithSort
+    $("#firstPageButton").click(function () {
+        $("#customerGrid").jqGrid("setGridParam", { page: 1 });
+        reloadGridWithSort();
+    });
+
+    $("#previousPageButton").click(function () {
+        const currentPage = $("#customerGrid").jqGrid("getGridParam", "page");
+        if (currentPage > 1) {
+            $("#customerGrid").jqGrid("setGridParam", { page: currentPage - 1 });
+            reloadGridWithSort();
+        }
+    });
+
+    $("#nextPageButton").click(function () {
+        const currentPage = $("#customerGrid").jqGrid("getGridParam", "page");
+        const lastPage = $("#customerGrid").jqGrid("getGridParam", "lastpage");
+        if (currentPage < lastPage) {
+            $("#customerGrid").jqGrid("setGridParam", { page: currentPage + 1 });
+            reloadGridWithSort();
+        }
+    });
+
+    $("#lastPageButton").click(function () {
+        const lastPage = $("#customerGrid").jqGrid("getGridParam", "lastpage");
+        $("#customerGrid").jqGrid("setGridParam", { page: lastPage });
+        reloadGridWithSort();
+    });
+});
+
+```
+```
+<script type="text/javascript">
+    $(document).ready(function () {
+        var selectedColumns = ${t}; // Danh sách cột đã chọn
+        console.log("Selected Columns: ", selectedColumns);
+
+        // Định nghĩa colModel
+        const columnMapping = {
+            "Customer ID": {
+                name: "customerID",
+                index: "customerID",
+                width: 75,
+                key: true,
+                formatter: "showlink",
+                formatoptions: {
+                    baseLinkUrl: "edit.do",
+                    idName: "id"
+                }
+            },
+            "Customer Name": { name: "customerName", index: "customerName", width: 150 },
+            "Sex": { name: "sex", index: "sex", width: 80, formatter: formatSex },
+            "Birthday": { name: "birthday", index: "birthday", width: 100 },
+            "Address": { name: "address", index: "address", width: 200 },
+            "Email": { name: "email", index: "email", width: 200 }
+        };
+
+        var colNames = selectedColumns;
+        var colModel = selectedColumns.map(column => columnMapping[column]);
+
+        // Biến để lưu trạng thái sắp xếp
+        var sortColumn = "customerID"; // Giá trị mặc định
+        var sortOrder = "asc";         // Giá trị mặc định
+
+        // Tạo jqGrid
+        $("#customerGrid").jqGrid({
+            data: ${test},
+            datatype: "local",
+            colNames: colNames,
+            colModel: colModel,
+            pager: "#customerPager",
+            rowNum: 10,
+            sortname: sortColumn,
+            sortorder: sortOrder,
+            viewrecords: true,
+            height: "auto",
+            autowidth: true,
+            multiselect: true,
+            jsonReader: {
+                repeatitems: false,
+                root: "rows",
+                page: "page",
+                total: "total",
+                records: "records"
+            },
+            gridComplete: function () {
+                updatePaginationButtons(); // Cập nhật trạng thái nút phân trang
+            },
+            onSortCol: function (index, order) {
+                sortColumn = index; // Lưu cột đang được sắp xếp
+                sortOrder = order;  // Lưu thứ tự sắp xếp
+            }
+        });
+
+        // Cập nhật trạng thái các nút phân trang
+        function updatePaginationButtons() {
+            const currentPage = $("#customerGrid").jqGrid("getGridParam", "page");
+            const lastPage = $("#customerGrid").jqGrid("getGridParam", "lastpage");
+
+            $("#previousPageButton").prop("disabled", currentPage <= 1);
+            $("#firstPageButton").prop("disabled", currentPage <= 1);
+            $("#nextPageButton").prop("disabled", currentPage >= lastPage);
+            $("#lastPageButton").prop("disabled", currentPage >= lastPage);
+        }
+
+        // Chuyển trang và giữ trạng thái sắp xếp
+        $("#firstPageButton").click(function () {
+            $("#customerGrid").jqGrid("setGridParam", {
+                page: 1,
+                sortname: sortColumn,
+                sortorder: sortOrder
+            }).trigger("reloadGrid");
+        });
+
+        $("#previousPageButton").click(function () {
+            const currentPage = $("#customerGrid").jqGrid("getGridParam", "page");
+            if (currentPage > 1) {
+                $("#customerGrid").jqGrid("setGridParam", {
+                    page: currentPage - 1,
+                    sortname: sortColumn,
+                    sortorder: sortOrder
+                }).trigger("reloadGrid");
+            }
+        });
+
+        $("#nextPageButton").click(function () {
+            const currentPage = $("#customerGrid").jqGrid("getGridParam", "page");
+            const lastPage = $("#customerGrid").jqGrid("getGridParam", "lastpage");
+            if (currentPage < lastPage) {
+                $("#customerGrid").jqGrid("setGridParam", {
+                    page: currentPage + 1,
+                    sortname: sortColumn,
+                    sortorder: sortOrder
+                }).trigger("reloadGrid");
+            }
+        });
+
+        $("#lastPageButton").click(function () {
+            const lastPage = $("#customerGrid").jqGrid("getGridParam", "lastpage");
+            $("#customerGrid").jqGrid("setGridParam", {
+                page: lastPage,
+                sortname: sortColumn,
+                sortorder: sortOrder
+            }).trigger("reloadGrid");
+        });
+
+        // Xử lý formatter cho cột "Sex"
+        function formatSex(cellValue) {
+            return cellValue === "0" ? "Male" : "Female";
+        }
+
+        // Nút cài đặt header
+        $("#settingHeaderButton").click(function () {
+            window.location.href = window.location.pathname.substring(0, window.location.pathname.indexOf("/", 2)) + "/upload.do";
+        });
+
+        console.log("${selectedColumns}");
+    });
+</script>
+
+```
 https://drive.google.com/drive/folders/1bPh22WOHnfjV8E2gzLIvzQr1Bx1uL9nx?usp=sharing
 ```
 editaction
