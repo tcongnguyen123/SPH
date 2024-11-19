@@ -1,4 +1,124 @@
 ```
+<filter>
+    <filter-name>springSecurityFilterChain</filter-name>
+    <filter-class>org.springframework.web.filter.DelegatingFilterProxy</filter-class>
+</filter>
+<filter-mapping>
+    <filter-name>springSecurityFilterChain</filter-name>
+    <url-pattern>/*</url-pattern>
+</filter-mapping>
+@Autowired
+private DataSource dataSource;
+
+@Override
+protected void configure(AuthenticationManagerBuilder auth) throws Exception {
+    auth.jdbcAuthentication()
+        .dataSource(dataSource)
+        .usersByUsernameQuery("SELECT username, password, enabled FROM users WHERE username = ?")
+        .authoritiesByUsernameQuery("SELECT username, authority FROM authorities WHERE username = ?");
+}
+
+```
+```
+Java Configuration (Thay thế spring-security.xml)
+Bạn có thể cấu hình Spring Security bằng Java nếu không muốn dùng XML:
+@Configuration
+@EnableWebSecurity
+public class SecurityConfig extends WebSecurityConfigurerAdapter {
+
+    @Override
+    protected void configure(HttpSecurity http) throws Exception {
+        http
+            .authorizeRequests()
+                .antMatchers("/login.do", "/static/**").permitAll() // Không yêu cầu đăng nhập
+                .antMatchers("/search.do").hasRole("USER")         // ROLE_USER mới được truy cập
+                .antMatchers("/admin/**").hasRole("ADMIN")         // ROLE_ADMIN mới được truy cập
+                .anyRequest().authenticated()
+                .and()
+            .formLogin()
+                .loginPage("/login.do")                           // Trang đăng nhập
+                .defaultSuccessUrl("/home.do")                   // Sau đăng nhập
+                .failureUrl("/login.do?error=true")              // Lỗi đăng nhập
+                .and()
+            .logout()
+                .logoutSuccessUrl("/login.do")                   // Sau khi logout
+                .invalidateHttpSession(true);
+    }
+
+    @Override
+    protected void configure(AuthenticationManagerBuilder auth) throws Exception {
+        auth.inMemoryAuthentication()
+            .withUser("admin").password("{noop}password").roles("ADMIN")
+            .and()
+            .withUser("user").password("{noop}password").roles("USER");
+    }
+}
+
+```
+```
+File spring-security.xml (hoặc cấu hình bằng Java)
+Thêm file spring-security.xml trong WEB-INF:
+<?xml version="1.0" encoding="UTF-8"?>
+<beans:beans xmlns="http://www.springframework.org/schema/security"
+             xmlns:beans="http://www.springframework.org/schema/beans"
+             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+             xsi:schemaLocation="
+                http://www.springframework.org/schema/security
+                http://www.springframework.org/schema/security/spring-security.xsd
+                http://www.springframework.org/schema/beans
+                http://www.springframework.org/schema/beans/spring-beans.xsd">
+
+    <!-- Cấu hình xác thực đơn giản (In-Memory Authentication) -->
+    <authentication-manager>
+        <authentication-provider>
+            <user-service>
+                <user name="admin" password="{noop}password" authorities="ROLE_ADMIN"/>
+                <user name="user" password="{noop}password" authorities="ROLE_USER"/>
+            </user-service>
+        </authentication-provider>
+    </authentication-manager>
+
+    <!-- Cấu hình URL bảo mật -->
+    <http auto-config="true" use-expressions="true">
+        <!-- Cho phép truy cập không cần đăng nhập -->
+        <intercept-url pattern="/login.do" access="permitAll"/>
+        <intercept-url pattern="/static/**" access="permitAll"/>
+
+        <!-- Bảo vệ tài nguyên cần đăng nhập -->
+        <intercept-url pattern="/search.do" access="hasRole('ROLE_USER')"/>
+        <intercept-url pattern="/admin/**" access="hasRole('ROLE_ADMIN')"/>
+
+        <!-- Form login -->
+        <form-login login-page="/login.do" default-target-url="/home.do" authentication-failure-url="/login.do?error=true"/>
+        
+        <!-- Đăng xuất -->
+        <logout logout-success-url="/login.do" invalidate-session="true"/>
+    </http>
+</beans:beans>
+
+```
+```
+<dependencies>
+    <!-- Spring Security -->
+    <dependency>
+        <groupId>org.springframework.security</groupId>
+        <artifactId>spring-security-core</artifactId>
+        <version>5.8.1</version>
+    </dependency>
+    <dependency>
+        <groupId>org.springframework.security</groupId>
+        <artifactId>spring-security-web</artifactId>
+        <version>5.8.1</version>
+    </dependency>
+    <dependency>
+        <groupId>org.springframework.security</groupId>
+        <artifactId>spring-security-config</artifactId>
+        <version>5.8.1</version>
+    </dependency>
+</dependencies>
+
+```
+```
 <?xml version="1.0" encoding="UTF-8"?>
 <web-app xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://xmlns.jcp.org/xml/ns/javaee" xsi:schemaLocation="http://xmlns.jcp.org/xml/ns/javaee http://xmlns.jcp.org/xml/ns/javaee/web-app_4_0.xsd" id="WebApp_ID" version="4.0">
   	<display-name>CustomerSystem_Struts</display-name>
