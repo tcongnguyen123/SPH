@@ -1,4 +1,108 @@
 ```
+<?xml version="1.0" encoding="UTF-8"?>
+<web-app xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://xmlns.jcp.org/xml/ns/javaee" xsi:schemaLocation="http://xmlns.jcp.org/xml/ns/javaee http://xmlns.jcp.org/xml/ns/javaee/web-app_4_0.xsd" id="WebApp_ID" version="4.0">
+  	<display-name>CustomerSystem_Struts</display-name>
+	<context-param>
+	    <param-name>javax.servlet.jsp.jstl.fmt.encoding</param-name>
+	    <param-value>UTF-8</param-value>
+	</context-param>
+	    <!-- Spring Context Configuration -->
+    <context-param>
+        <param-name>contextConfigLocation</param-name>
+        <param-value>/WEB-INF/spring/applicationContext.xml</param-value>
+    </context-param>
+    <filter>
+	    <filter-name>SessionFilter</filter-name>
+	    <filter-class>fjs.cs.util.SessionFilter</filter-class>
+	</filter>
+	<filter-mapping>
+	    <filter-name>SessionFilter</filter-name>
+	    <url-pattern>*.do</url-pattern>
+	</filter-mapping>
+	    
+    <!-- Spring Context Loader Listener -->
+    <listener>
+        <listener-class>org.springframework.web.context.ContextLoaderListener</listener-class>
+    </listener>
+
+	<welcome-file-list>
+	    <welcome-file>index.jsp</welcome-file> <!-- Đặt trang login.do làm welcome file -->
+	</welcome-file-list>
+
+    <servlet>
+        <servlet-name>action</servlet-name>
+        <servlet-class>org.apache.struts.action.ActionServlet</servlet-class>
+        <init-param>
+            <param-name>config</param-name>
+            <param-value>/WEB-INF/struts-config.xml</param-value>
+        </init-param>
+        <load-on-startup>2</load-on-startup>
+    </servlet>
+
+    <servlet-mapping>
+        <servlet-name>action</servlet-name>
+        <url-pattern>*.do</url-pattern>
+    </servlet-mapping>
+</web-app>
+```
+```
+package fjs.cs.util;
+
+import javax.servlet.*;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import javax.servlet.http.HttpSession;
+import java.io.IOException;
+
+public class SessionFilter implements Filter {
+
+    @Override
+    public void init(FilterConfig filterConfig) throws ServletException {}
+
+    @Override
+    public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain) throws IOException, ServletException {
+        HttpServletRequest httpRequest = (HttpServletRequest) request;
+        HttpServletResponse httpResponse = (HttpServletResponse) response;
+
+        HttpSession session = httpRequest.getSession(false);
+        String requestURI = httpRequest.getRequestURI();
+
+        // Bỏ qua các URL không cần xác thực
+        if (isPublicResource(requestURI)) {
+            chain.doFilter(request, response);
+            return;
+        }
+
+        // Kiểm tra nếu session không tồn tại hoặc không có user
+        if (session == null || session.getAttribute("userName") == null) {
+            // Trả về mã lỗi 404
+            httpResponse.sendError(HttpServletResponse.SC_NOT_FOUND, "Resource not found");
+            return;
+        }
+
+        // Tiếp tục xử lý request nếu hợp lệ
+        chain.doFilter(request, response);
+    }
+
+    @Override
+    public void destroy() {}
+
+    // Kiểm tra xem URL có phải là tài nguyên công khai không
+    private boolean isPublicResource(String uri) {
+        return uri.contains("login.do") ||   // Trang đăng nhập
+               uri.contains("register.do") || // Trang đăng ký (nếu có)
+               uri.contains("/static/") ||   // CSS, JS, hoặc hình ảnh
+               uri.endsWith(".css") ||       // File CSS
+               uri.endsWith(".js") ||        // File JS
+               uri.endsWith(".jpg") ||       // File JPG
+               uri.endsWith(".png");         // File PNG
+    }
+}
+
+
+
+```
+```
 <script type="text/javascript">
     $(document).ready(function () {
         var selectedColumns = ${t}; // Danh sách cột đã chọn
