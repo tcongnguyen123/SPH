@@ -1,4 +1,108 @@
 ```
+window.addEventListener("beforeunload", () => {
+    fetch("/Hibernate_Spring/logoutTab.do?tabToken=" + currentTabToken, { method: "POST" });
+});
+
+```
+```
+dang nhap 1 lan 
+package fjs.cs.util;
+
+import javax.servlet.*;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import javax.servlet.http.HttpSession;
+import java.io.IOException;
+import java.util.HashSet;
+import java.util.Set;
+
+public class SessionFilter implements Filter {
+
+    @Override
+    public void init(FilterConfig filterConfig) throws ServletException {}
+
+    @Override
+    public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain) throws IOException, ServletException {
+        HttpServletRequest httpRequest = (HttpServletRequest) request;
+        HttpServletResponse httpResponse = (HttpServletResponse) response;
+
+        HttpSession session = httpRequest.getSession(false);
+        String requestURI = httpRequest.getRequestURI();
+
+        // Bỏ qua các URL không cần xác thực
+        if (isPublicResource(requestURI)) {
+            chain.doFilter(request, response);
+            return;
+        }
+
+        // Kiểm tra nếu session không tồn tại hoặc không có user
+        if (session == null || session.getAttribute("userName") == null) {
+            httpResponse.sendError(HttpServletResponse.SC_NOT_FOUND, "Resource not found");
+            return;
+        }
+
+        // Lấy token từ URL
+        String currentTabToken = httpRequest.getParameter("tabToken");
+        if (currentTabToken == null) {
+            httpResponse.sendError(HttpServletResponse.SC_NOT_FOUND, "Invalid tab token");
+            return;
+        }
+
+        // Lấy danh sách token đã sử dụng từ session
+        Set<String> usedTokens = (Set<String>) session.getAttribute("usedTokens");
+        if (usedTokens == null) {
+            usedTokens = new HashSet<>();
+            session.setAttribute("usedTokens", usedTokens);
+        }
+
+        // Nếu token đã được sử dụng, trả về 404
+        if (usedTokens.contains(currentTabToken)) {
+            httpResponse.sendError(HttpServletResponse.SC_NOT_FOUND, "Token already in use");
+            return;
+        }
+
+        // Đánh dấu token này là đang được sử dụng
+        usedTokens.add(currentTabToken);
+
+        // Cho phép tiếp tục xử lý request
+        chain.doFilter(request, response);
+    }
+
+    @Override
+    public void destroy() {}
+
+    private boolean isPublicResource(String uri) {
+        return uri.contains("login.do") ||   // Trang đăng nhập
+               uri.contains("register.do") || // Trang đăng ký (nếu có)
+               uri.contains("/static/") ||   // CSS, JS, hoặc hình ảnh
+               uri.endsWith(".css") ||       // File CSS
+               uri.endsWith(".js") ||        // File JS
+               uri.endsWith(".jpg") ||       // File JPG
+               uri.endsWith(".png");         // File PNG
+    }
+}
+
+```
+```
+            // Đăng nhập thành công
+        	String userName = loginLogic.saveUserName(userID, passWord);
+        	session.setAttribute("userName", userName);
+        	// Controller xử lý login thành công
+        	String tabToken = (String) session.getAttribute("activeTabToken");
+        	if (tabToken == null) {
+        	    tabToken = UUID.randomUUID().toString();
+        	    session.setAttribute("activeTabToken", tabToken);
+        	}
+        	try {
+				response.sendRedirect("search.do?tabToken=" + tabToken);
+			} catch (IOException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+
+            return null;
+```
+```
 <filter>
     <filter-name>springSecurityFilterChain</filter-name>
     <filter-class>org.springframework.web.filter.DelegatingFilterProxy</filter-class>
