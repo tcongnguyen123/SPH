@@ -1,4 +1,153 @@
 ```
+<%@ page contentType="text/html;charset=UTF-8" language="java" %>
+<html>
+<head>
+    <title>Login</title>
+</head>
+<body>
+    <h1>Login</h1>
+    <form action="login.do" method="post">
+        <label for="username">Username:</label>
+        <input type="text" name="username" id="username" required>
+        <br>
+        <label for="password">Password:</label>
+        <input type="password" name="password" id="password" required>
+        <br>
+        <button type="submit">Login</button>
+    </form>
+
+    <c:if test="${not empty error}">
+        <p style="color:red">${error}</p>
+    </c:if>
+</body>
+</html>
+
+```
+```
+package fjs.cs.action;
+
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import javax.servlet.http.HttpSession;
+import javax.servlet.http.Cookie;
+import org.apache.struts.action.Action;
+import org.apache.struts.action.ActionForm;
+import org.apache.struts.action.ActionForward;
+import org.apache.struts.action.ActionMapping;
+import java.util.UUID;
+
+public class LoginAction extends Action {
+
+    @Override
+    public ActionForward execute(ActionMapping mapping, ActionForm form,
+                                 HttpServletRequest request, HttpServletResponse response) throws Exception {
+        HttpSession session = request.getSession();
+        String username = request.getParameter("username");
+        String password = request.getParameter("password");
+
+        // Kiểm tra đăng nhập
+        if ("admin".equals(username) && "password".equals(password)) {
+            session.setAttribute("userName", username); // Lưu user vào session
+
+            // Tạo token và lưu vào session
+            String tabToken = UUID.randomUUID().toString();
+            session.setAttribute("activeTabToken", tabToken);
+
+            // Gửi token qua cookie
+            Cookie tokenCookie = new Cookie("tabToken", tabToken);
+            tokenCookie.setHttpOnly(true); // Không cho phép truy cập từ JavaScript
+            tokenCookie.setPath("/");      // Áp dụng toàn bộ ứng dụng
+            response.addCookie(tokenCookie);
+
+            // Redirect đến trang search
+            return mapping.findForward("search");
+        }
+
+        // Đăng nhập thất bại
+        request.setAttribute("error", "Tên đăng nhập hoặc mật khẩu không đúng!");
+        return mapping.findForward("login");
+    }
+}
+
+```
+```
+package fjs.cs.util;
+
+import javax.servlet.*;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import javax.servlet.http.HttpSession;
+import javax.servlet.http.Cookie;
+import java.io.IOException;
+
+public class SessionFilter implements Filter {
+
+    @Override
+    public void init(FilterConfig filterConfig) throws ServletException {}
+
+    @Override
+    public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain) throws IOException, ServletException {
+        HttpServletRequest httpRequest = (HttpServletRequest) request;
+        HttpServletResponse httpResponse = (HttpServletResponse) response;
+
+        HttpSession session = httpRequest.getSession(false);
+
+        // Bỏ qua các URL không cần xác thực
+        if (isPublicResource(httpRequest.getRequestURI())) {
+            chain.doFilter(request, response);
+            return;
+        }
+
+        // Kiểm tra session
+        if (session == null || session.getAttribute("userName") == null) {
+            httpResponse.sendError(HttpServletResponse.SC_NOT_FOUND, "Not logged in");
+            return;
+        }
+
+        // Lấy token từ cookie
+        String tabToken = getTokenFromCookies(httpRequest);
+        String activeTabToken = (String) session.getAttribute("activeTabToken");
+
+        if (tabToken == null || !tabToken.equals(activeTabToken)) {
+            httpResponse.sendError(HttpServletResponse.SC_NOT_FOUND, "Invalid or missing tab token");
+            return;
+        }
+
+        // Đánh dấu token là đã sử dụng
+        session.setAttribute("tokenUsed", true);
+
+        // Cho phép tiếp tục xử lý request
+        chain.doFilter(request, response);
+    }
+
+    @Override
+    public void destroy() {}
+
+    // Lấy token từ cookie
+    private String getTokenFromCookies(HttpServletRequest request) {
+        if (request.getCookies() != null) {
+            for (Cookie cookie : request.getCookies()) {
+                if ("tabToken".equals(cookie.getName())) {
+                    return cookie.getValue();
+                }
+            }
+        }
+        return null;
+    }
+
+    // Kiểm tra tài nguyên công khai
+    private boolean isPublicResource(String uri) {
+        return uri.contains("login.do") ||
+               uri.contains("/static/") ||
+               uri.endsWith(".css") ||
+               uri.endsWith(".js") ||
+               uri.endsWith(".jpg") ||
+               uri.endsWith(".png");
+    }
+}
+
+```
+```
 window.addEventListener("beforeunload", () => {
     fetch("/Hibernate_Spring/logoutTab.do?tabToken=" + currentTabToken, { method: "POST" });
 });
