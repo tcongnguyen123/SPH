@@ -1,4 +1,205 @@
 ```
+package fjs.cs.action;
+
+import java.io.IOException;
+import java.util.UUID;
+
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import javax.servlet.http.HttpSession;
+
+import org.apache.struts.action.Action;
+import org.apache.struts.action.ActionForm;
+import org.apache.struts.action.ActionForward;
+import org.apache.struts.action.ActionMapping;
+
+import fjs.cs.form.loginForm;
+import fjs.cs.logic.loginLogic;
+
+public class loginAction extends Action {
+    private loginLogic loginLogic;
+	
+    public void setLoginLogic(loginLogic loginLogic) {
+        this.loginLogic = loginLogic;
+    }
+	
+    public ActionForward execute(ActionMapping mapping, ActionForm form,
+                                 HttpServletRequest request, HttpServletResponse response) {
+
+    	loginForm loginForm = (loginForm) form;
+
+        // Lấy thông tin người dùng từ form
+        String userID = loginForm.getUserID();
+        String passWord = loginForm.getPassWord();
+        HttpSession session = request.getSession();
+        // Kiểm tra thông tin đăng nhập
+        boolean check = loginLogic.handleLogin(userID, passWord);
+        
+        if (check) {
+            // Đăng nhập thành công
+        	String userName = loginLogic.saveUserName(userID, passWord);
+        	session.setAttribute("userName", userName);
+        	// Controller xử lý login thành công
+        	String tabToken = (String) session.getAttribute("activeTabToken");
+        	if (tabToken == null) {
+        	    tabToken = UUID.randomUUID().toString();
+        	    session.setAttribute("activeTabToken", tabToken);
+        	}
+        	try {
+				response.sendRedirect("search.do?tabToken=" + tabToken);
+			} catch (IOException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+
+            return null;
+        } else {
+            // Đăng nhập thất bại
+            request.setAttribute("errorMessage", "Invalid username or password.");
+            return mapping.findForward("failure");
+        }
+    }
+}
+```
+```
+import javax.servlet.*;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import javax.servlet.http.HttpSession;
+import java.io.IOException;
+import java.util.HashSet;
+import java.util.Set;
+
+public class SessionFilter implements Filter {
+
+    @Override
+    public void init(FilterConfig filterConfig) throws ServletException {}
+
+    @Override
+    public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain) throws IOException, ServletException {
+        HttpServletRequest httpRequest = (HttpServletRequest) request;
+        HttpServletResponse httpResponse = (HttpServletResponse) response;
+
+        HttpSession session = httpRequest.getSession(false);
+        String requestURI = httpRequest.getRequestURI();
+
+        // Bỏ qua các URL không cần xác thực
+        if (isPublicResource(requestURI)) {
+            chain.doFilter(request, response);
+            return;
+        }
+
+        // Kiểm tra nếu session không tồn tại hoặc không có user
+        if (session == null || session.getAttribute("userName") == null) {
+            httpResponse.sendError(HttpServletResponse.SC_NOT_FOUND, "Resource not found");
+            return;
+        }
+
+        // Lấy token từ URL
+        String currentTabToken = httpRequest.getParameter("tabToken");
+        if (currentTabToken == null) {
+            httpResponse.sendError(HttpServletResponse.SC_NOT_FOUND, "Invalid tab token");
+            return;
+        }
+
+        // Lấy danh sách token đã sử dụng từ session
+        Set<String> usedTokens = (Set<String>) session.getAttribute("usedTokens");
+        if (usedTokens == null) {
+            usedTokens = new HashSet<>();
+            session.setAttribute("usedTokens", usedTokens);
+        }
+
+        // Nếu token đã được sử dụng, trả về 404
+        if (usedTokens.contains(currentTabToken)) {
+            httpResponse.sendError(HttpServletResponse.SC_NOT_FOUND, "Token already in use");
+            return;
+        }
+
+        // Đánh dấu token này là đang được sử dụng
+        usedTokens.add(currentTabToken);
+
+        // Cho phép tiếp tục xử lý request
+        chain.doFilter(request, response);
+    }
+
+    @Override
+    public void destroy() {}
+
+    private boolean isPublicResource(String uri) {
+        return uri.contains("login.do") ||   // Trang đăng nhập
+               uri.contains("register.do") || // Trang đăng ký (nếu có)
+               uri.contains("/static/") ||   // CSS, JS, hoặc hình ảnh
+               uri.endsWith(".css") ||       // File CSS
+               uri.endsWith(".js") ||        // File JS
+               uri.endsWith(".jpg") ||       // File JPG
+               uri.endsWith(".png");         // File PNG
+    }
+}
+```
+```
+        let reloadFlag = "false"; // Giá trị mặc định là false (mở tab mới)
+
+        if (performance.navigation.type == performance.navigation.TYPE_RELOAD) {
+            reloadFlag = "true"; // Nếu là reload, gán giá trị "true"
+        }
+
+        // Gửi giá trị reloadFlag qua AJAX đến server
+        $.ajax({
+            url: window.location.pathname,
+            type: 'GET',
+            data: { reloadFlag: reloadFlag },
+            success: function(response) {
+                console.log('Server response:', response);
+            }
+        });
+```
+```
+package fjs.cs.util;
+
+import javax.servlet.*;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import javax.servlet.http.HttpSession;
+import java.io.IOException;
+
+public class SessionFilter implements Filter {
+
+    @Override
+    public void init(FilterConfig filterConfig) throws ServletException {}
+
+    @Override
+    public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain) 
+            throws IOException, ServletException {
+
+        HttpServletRequest httpRequest = (HttpServletRequest) request;
+        HttpServletResponse httpResponse = (HttpServletResponse) response;
+
+        HttpSession session = httpRequest.getSession();
+        
+        // Kiểm tra tham số "reloadFlag" từ request (được gửi từ JavaScript)
+        String reloadFlag = httpRequest.getParameter("reloadFlag");
+        System.out.println("----------- 1 -------------");
+        // Kiểm tra xem người dùng reload hay không
+        if ("true".equals(reloadFlag)) {
+            System.out.println("This is a reload!");
+            // Xử lý reload trang ở đây
+        } else if ("false".equals(reloadFlag)) {
+            System.out.println("This is a new tab!");
+            // Xử lý mở tab mới ở đây
+        } else {
+            System.out.println("Unable to determine whether this is a reload or a new tab.");
+        }
+        System.out.println("----------- 2 -------------");
+        // Tiếp tục filter chain
+        chain.doFilter(request, response);
+    }
+
+    @Override
+    public void destroy() {}
+}
+
+```
+```
 <%@ page contentType="text/html;charset=UTF-8" language="java" %>
 <html>
 <head>
