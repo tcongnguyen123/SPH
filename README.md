@@ -1,4 +1,144 @@
 ```
+package fjs.cs.util;
+
+import javax.servlet.*;
+import javax.servlet.http.Cookie;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import javax.servlet.http.HttpSession;
+import java.io.IOException;
+
+public class SessionFilter implements Filter {
+
+    @Override
+    public void init(FilterConfig filterConfig) throws ServletException {}
+
+    @Override
+    public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain)
+            throws IOException, ServletException {
+
+        HttpServletRequest httpRequest = (HttpServletRequest) request;
+        HttpServletResponse httpResponse = (HttpServletResponse) response;
+
+        HttpSession session = httpRequest.getSession();
+        // Bỏ qua các URL không cần xác thực
+        if (isPublicResource(httpRequest.getRequestURI())) {
+            chain.doFilter(request, response);
+            return;
+        }
+
+        // Kiểm tra nếu session không tồn tại hoặc không có user
+        if (session == null || session.getAttribute("userName") == null) {
+            httpResponse.sendError(HttpServletResponse.SC_NOT_FOUND, "Resource not found");
+            return;
+        }
+        // Lấy cookie `seAppId` hiện tại
+        String currentSeAppId = null;
+        Cookie[] cookies = httpRequest.getCookies();
+        if (cookies != null) {
+            for (Cookie cookie : cookies) {
+                if ("seAppId".equals(cookie.getName())) {
+                    currentSeAppId = cookie.getValue();
+                    break;
+                }
+            }
+        }
+        String initialSeAppId = (String) session.getAttribute("initialSeAppId");
+//        if (currentSeAppId == null) {
+//            // Không tìm thấy cookie `seAppId`, trả về 404
+//            httpResponse.sendError(HttpServletResponse.SC_NOT_FOUND, "Cookie seAppId không tồn tại.");
+//            return;
+//        }
+
+        // Lấy giá trị `seAppId` ban đầu từ session
+        System.out.println(currentSeAppId);
+        System.out.println(initialSeAppId);
+        if (initialSeAppId == null) {
+            // Nếu chưa có giá trị ban đầu, lưu giá trị hiện tại vào session
+            session.setAttribute("initialSeAppId", currentSeAppId);
+            String a = (String) session.getAttribute("initialSeAppId");
+            System.out.println("daya la cai dau" +a);
+        } else if (!initialSeAppId.equals(currentSeAppId)) {
+        	System.out.println("vao day");
+            // Nếu giá trị hiện tại khác giá trị ban đầu, trả về 404
+            httpResponse.sendError(HttpServletResponse.SC_NOT_FOUND, "Giá trị cookie seAppId đã thay đổi.");
+            return;
+        }
+
+        // Tiếp tục chuỗi filter
+        chain.doFilter(request, response);
+    }
+
+    @Override
+    public void destroy() {}
+    private boolean isPublicResource(String uri) {
+        return uri.contains("login.do") ||   // Trang đăng nhập
+               uri.contains("register.do") || // Trang đăng ký (nếu có)
+               uri.contains("/static/") ||   // CSS, JS, hoặc hình ảnh
+               uri.endsWith(".css") ||       // File CSS
+               uri.endsWith(".js") ||        // File JS
+               uri.endsWith(".jpg") ||       // File JPG
+               uri.endsWith(".png");         // File PNG
+    }
+}
+
+```
+```
+<script type="text/javascript">
+	//Events 
+// Sử dụng $(document).ready() để đảm bảo cookie được thiết lập ngay khi trang tải
+	$(document).ready(function() {
+	    generateWindowID();
+	});
+	
+	function generateWindowID() {
+	    // Đảm bảo giá trị window.name được thiết lập ngay khi trang tải
+	    if (window.name.indexOf("SEAppId") === -1) {
+	        window.name = 'SEAppId' + (new Date()).getTime();
+	    }
+	    setAppId();
+	}
+	
+	function setAppId() {
+	    // Đảm bảo cookie được thiết lập với window.name ngay từ đầu
+	    let strCookie = 'seAppId=' + window.name + ';';
+	    strCookie += ' path=/';
+	
+	    if (window.location.protocol.toLowerCase() === 'https:') {
+	        strCookie += ' secure;';
+	    }
+	
+	    document.cookie = strCookie;
+	    console.log('Giá trị cookie seAppId được lưu: ' + window.name);
+	}
+```
+```
+	$(window).ready(function() {generateWindowID()});
+	$(window).focus(function() {setAppId()});
+	$(window).mouseover(function() {setAppId()});
+	
+	
+	function generateWindowID() {
+	    // Thay thế se_appframe() bằng window hoặc hàm đã định nghĩa.
+	    if (window.name.indexOf("SEAppId") == -1) {
+	        window.name = 'SEAppId' + (new Date()).getTime();
+	    }
+	    setAppId();
+	}
+
+	function setAppId() {
+	    // Tạo cookie với giá trị window.name
+	    let strCookie = 'seAppId=' + window.name + ';';
+	    strCookie += ' path=/';
+
+	    if (window.location.protocol.toLowerCase() == 'https:') {
+	        strCookie += ' secure;';
+	    }
+
+	    document.cookie = strCookie;
+	}
+```
+```
 package fjs.cs.action;
 
 import java.io.IOException;
