@@ -1,4 +1,143 @@
 ```
+Cách 5: Sử dụng Token trong URL
+Cơ chế:
+
+Sinh token duy nhất cho mỗi tab và thêm token vào URL.
+Kiểm tra token trên server trong mỗi request.
+Mã JavaScript:
+javascript
+Sao chép mã
+$(document).ready(function () {
+    let token = new Date().getTime();
+    window.history.pushState({}, document.title, window.location.pathname + "?token=" + token);
+});
+Mã Server (Java - Servlet):
+java
+Sao chép mã
+String token = request.getParameter("token");
+if (token == null || !isValidToken(token)) {
+    response.sendError(HttpServletResponse.SC_NOT_FOUND, "Page not found");
+}
+Giải thích:
+
+Dùng window.history.pushState để thêm token duy nhất vào URL mỗi khi người dùng đăng nhập.
+Kiểm tra token trong URL trên server và trả về lỗi 404 Not Found nếu token không hợp lệ.
+```
+```
+Cách 4: Sử dụng Session ID và window.name
+Cơ chế:
+
+Sinh một session ID duy nhất cho mỗi tab và lưu vào window.name.
+Kiểm tra session ID trên mỗi request để xác định tab hợp lệ.
+Mã JavaScript (Lưu vào window.name):
+javascript
+Sao chép mã
+$(document).ready(function () {
+    if (!window.name) {
+        window.name = 'Session_' + new Date().getTime();
+    }
+    document.cookie = "sessionId=" + window.name + "; path=/; secure;";
+});
+Mã Server (Java - Servlet):
+java
+Sao chép mã
+String sessionId = null;
+Cookie[] cookies = request.getCookies();
+if (cookies != null) {
+    for (Cookie cookie : cookies) {
+        if ("sessionId".equals(cookie.getName())) {
+            sessionId = cookie.getValue();
+            break;
+        }
+    }
+}
+if (sessionId == null || !isValidSessionId(sessionId)) {
+    response.sendError(HttpServletResponse.SC_NOT_FOUND, "Page not found");
+}
+Giải thích:
+
+window.name được sử dụng để tạo session ID duy nhất cho mỗi tab.
+Kiểm tra sessionId trên server để chỉ cho phép người dùng truy cập trong tab đã đăng nhập.
+```
+```
+Cách 3: Dùng LocalStorage và Server Session
+Cơ chế:
+
+Dùng localStorage để lưu giá trị duy nhất cho mỗi tab.
+Server kiểm tra giá trị lưu trong session đối với mỗi request.
+Mã JavaScript:
+javascript
+Sao chép mã
+$(document).ready(function () {
+    let sessionId = localStorage.getItem("sessionId");
+    if (!sessionId) {
+        sessionId = 'Session_' + new Date().getTime();
+        localStorage.setItem("sessionId", sessionId);
+    }
+    document.cookie = "sessionId=" + sessionId + "; path=/; secure;";
+});
+Mã Server (Java - Servlet):
+java
+Sao chép mã
+String sessionId = null;
+Cookie[] cookies = request.getCookies();
+if (cookies != null) {
+    for (Cookie cookie : cookies) {
+        if ("sessionId".equals(cookie.getName())) {
+            sessionId = cookie.getValue();
+            break;
+        }
+    }
+}
+if (sessionId == null || !isValidSession(sessionId)) {
+    response.sendError(HttpServletResponse.SC_NOT_FOUND, "Page not found");
+}
+Giải thích:
+
+Dùng localStorage để lưu giá trị duy nhất cho mỗi tab.
+Kiểm tra sessionId từ cookie và đối chiếu với giá trị đã lưu trên server.
+
+```
+```
+Cách 2: Dùng Token Gắn Liền Với Session
+Cơ chế:
+
+Sinh một token duy nhất cho mỗi session và gán token vào mỗi tab.
+Kiểm tra token trong mỗi request.
+Mã JavaScript (Lưu token vào Session):
+javascript
+Sao chép mã
+$(document).ready(function () {
+    let token = sessionStorage.getItem("sessionToken");
+    if (!token) {
+        token = 'Token_' + new Date().getTime();
+        sessionStorage.setItem("sessionToken", token);
+    }
+    document.cookie = "sessionToken=" + token + "; path=/; secure;";
+});
+Mã Server (Java - Servlet):
+java
+Sao chép mã
+String token = null;
+Cookie[] cookies = request.getCookies();
+if (cookies != null) {
+    for (Cookie cookie : cookies) {
+        if ("sessionToken".equals(cookie.getName())) {
+            token = cookie.getValue();
+            break;
+        }
+    }
+}
+if (token == null || !isValidToken(token)) {
+    response.sendError(HttpServletResponse.SC_NOT_FOUND, "Page not found");
+}
+Giải thích:
+
+Sử dụng sessionStorage để tạo token duy nhất cho từng tab. Sau đó, lưu token này vào cookie.
+Mỗi lần gửi request, token này được kiểm tra trên server, và chỉ trả về kết quả nếu token hợp lệ.
+
+```
+```
 Cách 1: Sử dụng window.name và Cookie
 Cơ chế:
 
