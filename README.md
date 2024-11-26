@@ -1,4 +1,143 @@
 ```
+Để giải quyết yêu cầu của bạn một cách thông minh và thực tế, có thể áp dụng một số kỹ thuật mà các ứng dụng web thường sử dụng trong thực tế để quản lý trạng thái người dùng, đặc biệt là khi liên quan đến các tab trình duyệt và session. Đây là một số giải pháp phổ biến và có tính ứng dụng cao để đáp ứng yêu cầu của bạn:
+
+1. Sử dụng Web Storage (SessionStorage hoặc LocalStorage) kết hợp với Session ID
+Cách này tận dụng tính năng của SessionStorage (hoặc LocalStorage) để lưu trữ session ID hoặc một thông tin xác thực khác trong trình duyệt. Mỗi tab sẽ có phiên làm việc riêng biệt, nhưng bạn có thể kiểm tra khi nào các tab khác cố gắng truy cập trang.
+
+Cách hoạt động:
+Khi người dùng đăng nhập và truy cập search.do:
+
+Tạo một mã session ID duy nhất khi người dùng đăng nhập (có thể là một token hoặc giá trị UUID).
+Lưu session ID này vào SessionStorage (hoặc LocalStorage nếu bạn cần dữ liệu tồn tại lâu hơn).
+SessionStorage có tính chất lưu trữ riêng biệt cho mỗi tab, vì vậy không thể chia sẻ dữ liệu giữa các tab.
+Kiểm tra session khi vào search.do từ tab khác:
+
+Trước khi cho phép truy cập vào search.do, kiểm tra trong SessionStorage để xác nhận rằng session ID hiện tại có trùng với session ID của tab đang đăng nhập hay không.
+Nếu không trùng, trả về lỗi "Not Found".
+Khi chuyển sang edit.do từ search.do:
+
+Nếu người dùng chuyển từ search.do sang edit.do, không làm thay đổi session ID trong SessionStorage, chỉ cần tiếp tục duy trì trạng thái đã đăng nhập.
+Cách triển khai:
+1. Lưu và kiểm tra session ID trên Client (JavaScript)
+javascript
+Sao chép mã
+$(document).ready(function() {
+    const sessionId = sessionStorage.getItem('sessionId');
+    const currentUrl = window.location.pathname;
+    
+    // Kiểm tra nếu session ID không tồn tại trong SessionStorage (khi chưa đăng nhập)
+    if (!sessionId) {
+        alert('Not Found');
+        window.location.href = '/login.do'; // Redirect đến trang đăng nhập
+    }
+
+    // Kiểm tra nếu URL đã tồn tại trong sessionStorage (trường hợp mở tab mới)
+    const currentTabSessionId = sessionStorage.getItem('currentTabSessionId');
+    if (currentTabSessionId && currentTabSessionId !== sessionId) {
+        alert('Not Found');
+        window.location.href = '/404'; // Redirect đến trang lỗi
+    }
+
+    // Nếu chưa tồn tại sessionId, lưu nó vào SessionStorage khi người dùng đăng nhập
+    if (!sessionId && currentUrl === '/login.do') {
+        sessionStorage.setItem('sessionId', 'user-session-id-' + new Date().getTime()); // Tạo sessionId ngẫu nhiên hoặc từ backend
+    }
+
+    // Lưu sessionId của tab hiện tại vào SessionStorage để kiểm tra trong các tab khác
+    if (!currentTabSessionId) {
+        sessionStorage.setItem('currentTabSessionId', sessionId);
+    }
+});
+2. Khi chuyển đến edit.do, xóa session ID khỏi SessionStorage nếu cần:
+javascript
+Sao chép mã
+$(document).ready(function() {
+    const sessionId = sessionStorage.getItem('sessionId');
+    const currentUrl = window.location.pathname;
+
+    if (currentUrl.includes('edit.do')) {
+        // Xóa session ID khi chuyển đến edit.do (nếu cần)
+        sessionStorage.removeItem('currentTabSessionId');
+    }
+});
+2. Sử dụng Cookies với SameSite Attribute
+Một cách hiệu quả và phổ biến trong thực tế là sử dụng cookies với thuộc tính SameSite để kiểm soát hành vi của cookie khi có nhiều tab. Bạn có thể kiểm soát session cookie và chỉ cho phép truy cập từ những tab cùng domain hoặc session.
+
+Cách hoạt động:
+Khi người dùng đăng nhập:
+
+Gửi một cookie có thuộc tính SameSite=Strict hoặc SameSite=Lax khi đăng nhập.
+Cookie này sẽ chỉ được gửi trong cùng một tab, ngăn chặn việc gửi cookie đến các tab khác.
+Kiểm tra khi truy cập vào search.do:
+
+Khi người dùng cố gắng truy cập search.do từ tab khác, cookie sẽ không được gửi đến server (do SameSite), giúp bảo vệ URL khỏi việc bị truy cập bất hợp pháp.
+Khi chuyển sang edit.do:
+
+Nếu người dùng chuyển từ search.do sang edit.do, cookie vẫn được gửi trong cùng một tab và không gặp vấn đề về truy cập trái phép từ các tab khác.
+Cách triển khai:
+1. Gửi Cookie khi đăng nhập với SameSite
+java
+Sao chép mã
+// Gửi cookie khi đăng nhập trong backend (ví dụ trong Servlet hoặc Filter)
+Cookie sessionCookie = new Cookie("sessionId", "user-session-id-" + new Date().getTime());
+sessionCookie.setHttpOnly(true);
+sessionCookie.setSecure(true); // Chỉ gửi cookie qua HTTPS
+sessionCookie.setMaxAge(60 * 60); // 1 giờ
+sessionCookie.setPath("/"); // Áp dụng cho toàn bộ ứng dụng
+
+// Đặt SameSite attribute để chỉ cho phép gửi cookie trong cùng một tab
+sessionCookie.setAttribute("SameSite", "Strict"); // Hoặc "Lax" nếu cần một ít linh động
+
+response.addCookie(sessionCookie);
+2. Kiểm tra Cookie khi vào search.do và edit.do
+java
+Sao chép mã
+// Kiểm tra cookie trong filter hoặc servlet khi truy cập vào search.do
+Cookie[] cookies = request.getCookies();
+String sessionId = null;
+
+for (Cookie cookie : cookies) {
+    if ("sessionId".equals(cookie.getName())) {
+        sessionId = cookie.getValue();
+        break;
+    }
+}
+
+// Kiểm tra nếu sessionId không tồn tại hoặc không hợp lệ, trả về lỗi Not Found
+if (sessionId == null) {
+    response.sendError(HttpServletResponse.SC_NOT_FOUND);
+    return;
+}
+3. Sử dụng WebSocket hoặc Server-Side Session Tracking
+Một giải pháp mạnh mẽ và linh hoạt là sử dụng WebSocket hoặc server-side session tracking để theo dõi các kết nối và xác thực người dùng trong thời gian thực.
+
+Cách hoạt động:
+Khi người dùng đăng nhập, hệ thống sẽ theo dõi trạng thái đăng nhập của người dùng và giữ trạng thái của người dùng (có thể sử dụng WebSocket để theo dõi và thông báo khi một tab không hợp lệ cố gắng truy cập).
+Các tab khác sẽ không thể lấy lại session nếu chưa được xác thực hợp lệ từ server.
+4. Dùng UUID hoặc Token-based Authentication (JWT)
+Một phương pháp hiện đại và phổ biến là sử dụng UUID hoặc JWT (JSON Web Token) để xác thực phiên làm việc.
+
+Cách hoạt động:
+Sau khi đăng nhập, gửi một UUID hoặc JWT từ server xuống client (lưu trữ trong cookie hoặc localStorage/sessionStorage).
+Khi người dùng truy cập vào search.do, client sẽ gửi token này để xác thực lại với server.
+Nếu token không hợp lệ (từ tab khác), server sẽ trả về lỗi "Not Found".
+Tóm tắt các giải pháp:
+Sử dụng Web Storage (SessionStorage/LocalStorage):
+
+Kiểm tra session ID và quản lý các tab qua SessionStorage hoặc LocalStorage.
+Mỗi tab có một session ID riêng biệt, ngăn ngừa việc sao chép URL qua tab khác.
+Sử dụng Cookies với SameSite:
+
+Sử dụng cookies với thuộc tính SameSite để kiểm soát cookie chỉ được gửi trong cùng một tab.
+WebSocket hoặc Server-Side Session Tracking:
+
+Theo dõi trạng thái người dùng và session qua WebSocket hoặc các hệ thống theo dõi session phía server.
+UUID hoặc JWT Authentication:
+
+Sử dụng UUID hoặc JWT để xác thực người dùng qua các tab, đảm bảo rằng chỉ có tab đã đăng nhập mới có thể truy cập trang.
+Các phương pháp này đều đã được áp dụng trong thực tế và giúp bảo vệ ứng dụng web khỏi các cuộc tấn công hoặc truy cập trái phép từ các tab khác.
+```
+```
 Mô tả yêu cầu:
 Kiểm tra URL của trang:
 
