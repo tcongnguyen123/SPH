@@ -1,4 +1,141 @@
 ```
+Nếu bạn gặp phải tình huống mà một lần gửi request AJAX lại khiến dữ liệu từ cơ sở dữ liệu (DB) bị load lại hai lần, có thể có một số nguyên nhân phổ biến dẫn đến hành vi này. Cụ thể, một lần gửi AJAX có thể kích hoạt một lần query đến DB từ phía server, nhưng sau đó lại xảy ra một lần query nữa sau khi gửi dữ liệu về từ AJAX.
+
+Dưới đây là một số nguyên nhân và cách khắc phục tình huống này.
+
+Nguyên nhân và giải pháp
+1. Trả về dữ liệu từ DB trong cả request và AJAX Response
+Nguyên nhân:
+
+Trong ứng dụng của bạn, có thể một lần query DB được thực hiện khi load trang ban đầu, và sau đó khi gửi request AJAX, server lại thực hiện thêm một query nữa để trả về dữ liệu. Điều này dẫn đến việc query dữ liệu từ DB hai lần.
+Giải pháp:
+
+Đảm bảo rằng bạn chỉ thực hiện query dữ liệu một lần, và lần gửi AJAX chỉ xử lý việc gửi dữ liệu đã có sẵn, không kích hoạt lại việc query DB.
+Ví dụ:
+Query DB chỉ một lần trong quá trình load trang.
+Khi load trang, server chỉ cần lấy dữ liệu từ DB một lần và trả về dưới dạng response cho lần tải trang đầu tiên.
+AJAX chỉ gửi dữ liệu đã có (hoặc gửi dữ liệu mới).
+Nếu bạn chỉ cần gửi hoặc lấy một số dữ liệu mới từ phía client, AJAX không cần yêu cầu lại DB.
+2. Gọi lại dữ liệu khi AJAX trả về (vấn đề bất đồng bộ)
+Nguyên nhân:
+
+Bạn có thể đang thực hiện một query DB trong AJAX để trả dữ liệu cho client, sau đó lại tiếp tục gọi một query DB khác trong phần callback của AJAX mà không cần thiết. Điều này có thể khiến dữ liệu bị load lại hai lần, một lần từ AJAX và một lần từ DB.
+Giải pháp:
+
+Kiểm tra mã phía server của bạn và đảm bảo rằng việc query dữ liệu từ DB chỉ xảy ra một lần, khi cần thiết. Không gọi query DB lại trong callback của AJAX nếu không cần thiết.
+Ví dụ:
+javascript
+Sao chép mã
+// Gửi request AJAX
+$.ajax({
+    url: '/api/data',
+    method: 'GET',
+    success: function(response) {
+        console.log("Dữ liệu từ AJAX: ", response);
+        // Chỉ xử lý dữ liệu trả về từ AJAX ở đây
+    },
+    error: function(err) {
+        console.log("Lỗi khi gửi AJAX: ", err);
+    }
+});
+Trong ví dụ này, bạn chỉ thực hiện gửi request AJAX mà không gọi lại dữ liệu từ DB trong callback.
+
+3. Xử lý nhiều query DB trong controller hoặc service
+Nguyên nhân:
+
+Nếu bạn thực hiện quá nhiều query DB trong cùng một controller hoặc service mà không có điều kiện kiểm tra, có thể dẫn đến việc dữ liệu được truy vấn nhiều lần.
+Giải pháp:
+
+Hãy kiểm tra logic trong controller và dịch vụ (services) của bạn. Đảm bảo rằng bạn chỉ gọi query DB khi thật sự cần thiết, và tránh việc gọi lại dữ liệu khi nó đã có sẵn trong session hoặc các biến toàn cục.
+Ví dụ:
+java
+Sao chép mã
+// Giả sử đây là controller của bạn trong Java
+public String loadData() {
+    // Kiểm tra xem dữ liệu đã có sẵn trong session chưa
+    if (session.getAttribute("customerData") == null) {
+        // Chỉ query DB nếu dữ liệu chưa có trong session
+        List<Customer> customers = customerService.getAllCustomers();
+        session.setAttribute("customerData", customers);
+    }
+    return "viewData"; // Trả dữ liệu có sẵn trong session
+}
+Trong ví dụ trên, dữ liệu chỉ được truy vấn từ DB nếu nó không có sẵn trong session.
+
+4. Tự động load lại dữ liệu sau khi gửi AJAX (Refresh của trang)
+Nguyên nhân:
+
+Nếu bạn có cơ chế refresh hoặc reloading dữ liệu sau khi gửi AJAX (ví dụ: reload lại trang hoặc fetch lại dữ liệu từ DB sau khi AJAX hoàn tất), điều này có thể khiến việc query DB bị gọi lại hai lần.
+Giải pháp:
+
+Kiểm tra xem bạn có đang reload trang hoặc refresh dữ liệu sau khi AJAX hoàn tất không. Nếu có, hãy ngừng hành động đó hoặc sử dụng một cơ chế chỉ load lại dữ liệu khi thật sự cần thiết.
+Ví dụ:
+javascript
+Sao chép mã
+$.ajax({
+    url: '/api/data',
+    method: 'GET',
+    success: function(response) {
+        // Xử lý dữ liệu trả về mà không reload lại trang
+        // Không gọi lại dữ liệu từ DB ở đây
+        updateUI(response);
+    }
+});
+Nếu bạn không cần refresh lại dữ liệu từ DB, chỉ cần update giao diện với dữ liệu đã có từ AJAX.
+
+5. Gửi lại request AJAX do sự kiện (Event) bị lặp lại
+Nguyên nhân:
+
+Một sự kiện trong ứng dụng của bạn có thể bị lặp lại và gửi AJAX request nhiều lần. Ví dụ: nếu bạn có sự kiện click hoặc submit, sự kiện này có thể bị kích hoạt nhiều lần khiến request AJAX bị gửi lại nhiều lần.
+Giải pháp:
+
+Sử dụng preventDefault() và stopPropagation() trong các sự kiện để ngăn chặn việc gửi request lặp lại.
+Ví dụ:
+javascript
+Sao chép mã
+$(document).on('submit', 'form', function (e) {
+    e.preventDefault(); // Ngừng hành động mặc định của form
+    e.stopPropagation(); // Ngừng sự kiện lan truyền
+    sendRequestToServer();
+});
+Tóm tắt:
+Để tránh việc query dữ liệu từ DB nhiều lần, hãy kiểm tra kỹ các lý do sau:
+
+Đảm bảo chỉ query dữ liệu từ DB một lần và không gọi lại khi có dữ liệu đã được lưu trữ.
+Đảm bảo không gửi nhiều request AJAX mà không cần thiết.
+Kiểm tra sự kiện gửi request để đảm bảo không có sự kiện lặp lại hoặc tái kích hoạt request AJAX.
+Nếu vẫn gặp sự cố, kiểm tra kỹ lại flow của request và response trong ứng dụng của bạn, và sử dụng công cụ debug (ví dụ: console logs hoặc network tab trong Developer Tools) để theo dõi những request không mong muốn.
+```
+```
+let isRequestInProgress = false; // Biến kiểm tra việc gửi request
+
+$(document).ready(function () {
+    if (!isRequestInProgress) {
+        sendRequestToServer();
+    }
+});
+
+function sendRequestToServer() {
+    isRequestInProgress = true; // Đánh dấu việc request đang được gửi
+
+    fetch('/your-endpoint', {
+        method: 'GET',
+        credentials: 'same-origin' // Đảm bảo cookie được gửi cùng request
+    })
+    .then(response => response.json())
+    .then(data => {
+        console.log(data);
+    })
+    .catch(error => {
+        console.error('Error:', error);
+    })
+    .finally(() => {
+        isRequestInProgress = false; // Reset lại flag sau khi request hoàn thành
+    });
+}
+
+```
+```
 Cách 5: Sử dụng Token trong URL
 Cơ chế:
 
