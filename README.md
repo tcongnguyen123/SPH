@@ -1,4 +1,50 @@
 ```
+Cách 1: Sử dụng window.name và Cookie
+Cơ chế:
+
+Gán một giá trị AppId duy nhất cho mỗi tab khi người dùng đăng nhập.
+Lưu AppId vào cookie.
+Kiểm tra AppId từ cookie trong mỗi request.
+Mã JavaScript:
+javascript
+Sao chép mã
+$(document).ready(function () {
+    if (!window.name) {
+        window.name = 'SEAppId' + (new Date()).getTime();
+    }
+    document.cookie = "seAppId=" + window.name + "; path=/; secure;";
+});
+
+function checkAppId() {
+    let cookies = document.cookie.split('; ');
+    let appId = cookies.find(cookie => cookie.startsWith("seAppId="));
+    if (appId) {
+        return appId.split('=')[1];
+    }
+    return null;
+}
+Mã Server (Java - Servlet):
+java
+Sao chép mã
+String currentSeAppId = null;
+Cookie[] cookies = request.getCookies();
+if (cookies != null) {
+    for (Cookie cookie : cookies) {
+        if ("seAppId".equals(cookie.getName())) {
+            currentSeAppId = cookie.getValue();
+            break;
+        }
+    }
+}
+if (currentSeAppId == null || !isValidAppId(currentSeAppId)) {
+    response.sendError(HttpServletResponse.SC_NOT_FOUND, "Page not found");
+}
+Giải thích:
+
+Mỗi tab sẽ có một giá trị window.name duy nhất, được sử dụng làm AppId và lưu vào cookie.
+Khi người dùng copy liên kết sang tab khác, AppId không trùng khớp sẽ khiến server trả về lỗi 404.
+```
+```
 package fjs.cs.util;
 
 import javax.servlet.*;
