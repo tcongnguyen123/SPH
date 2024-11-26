@@ -1,4 +1,123 @@
 ```
+Mô tả yêu cầu:
+Kiểm tra URL của trang:
+
+Sau khi người dùng đăng nhập và vào trang search.do, kiểm tra nếu người dùng cố gắng mở lại URL đó ở tab mới (hoặc chuyển qua các trang như edit.do), thì không cho phép truy cập lại search.do từ tab khác.
+Xóa search.do khỏi danh sách đã truy cập khi vào edit.do:
+
+Khi người dùng truy cập vào edit.do từ search.do, xóa URL search.do khỏi danh sách đã lưu.
+Kiểm tra lại khi reload search.do:
+
+Khi reload lại trang search.do, kiểm tra và đảm bảo rằng search.do không có trong session hoặc đã được xóa.
+Bước 1: Tạo một Security Filter
+Tạo Filter kiểm tra session và URL:
+java
+Sao chép mã
+import javax.servlet.*;
+import javax.servlet.http.*;
+import java.io.IOException;
+
+public class SecurityFilter implements Filter {
+    
+    @Override
+    public void init(FilterConfig filterConfig) throws ServletException {
+        // Initialize filter if needed
+    }
+
+    @Override
+    public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain)
+            throws IOException, ServletException {
+
+        HttpServletRequest httpRequest = (HttpServletRequest) request;
+        HttpServletResponse httpResponse = (HttpServletResponse) response;
+
+        HttpSession session = httpRequest.getSession(false);
+        String currentUrl = httpRequest.getRequestURI();
+        
+        // Lấy danh sách URL đã duyệt từ session
+        Object visitedUrlsObj = session != null ? session.getAttribute("visitedUrls") : null;
+        if (visitedUrlsObj == null) {
+            visitedUrlsObj = new HashSet<String>();  // Nếu chưa có, khởi tạo danh sách rỗng
+        }
+        
+        Set<String> visitedUrls = (Set<String>) visitedUrlsObj;
+
+        // Kiểm tra nếu người dùng cố gắng truy cập lại `search.do` từ tab khác
+        if (visitedUrls.contains(currentUrl) && !currentUrl.contains("edit.do")) {
+            // Nếu URL đã tồn tại, trả về lỗi "Not Found"
+            httpResponse.sendError(HttpServletResponse.SC_NOT_FOUND);
+            return;
+        }
+
+        // Lưu `currentUrl` vào session để theo dõi các URL đã truy cập
+        visitedUrls.add(currentUrl);
+        session.setAttribute("visitedUrls", visitedUrls);
+        
+        // Nếu vào trang `edit.do`, xóa `search.do` khỏi danh sách URL đã lưu
+        if (currentUrl.contains("edit.do")) {
+            visitedUrls.remove("search.do");
+            session.setAttribute("visitedUrls", visitedUrls);
+        }
+
+        // Tiếp tục chuỗi Filter
+        chain.doFilter(request, response);
+    }
+
+    @Override
+    public void destroy() {
+        // Clean-up filter resources if necessary
+    }
+}
+Giải thích mã:
+Session quản lý các URL đã truy cập:
+visitedUrls: Một tập hợp (Set) lưu trữ các URL mà người dùng đã truy cập trong phiên làm việc.
+Mỗi lần người dùng truy cập vào một URL mới (ví dụ: search.do), URL đó sẽ được lưu vào session (visitedUrls).
+Kiểm tra truy cập vào các URL:
+Trước khi cho phép người dùng truy cập một URL, filter sẽ kiểm tra nếu URL đó đã được lưu trong visitedUrls.
+Nếu visitedUrls chứa URL của search.do, và người dùng cố gắng truy cập lại URL từ một tab mới (một tab chưa đăng nhập hoặc chưa duyệt qua), filter sẽ trả về lỗi 404 - Not Found.
+Xóa URL khỏi danh sách khi chuyển sang edit.do:
+Khi người dùng vào edit.do, nếu search.do có trong danh sách visitedUrls, nó sẽ bị xóa đi để đảm bảo không cho phép người dùng reload lại search.do.
+Bước 2: Đăng ký filter trong web.xml
+xml
+Sao chép mã
+<filter>
+    <filter-name>SecurityFilter</filter-name>
+    <filter-class>com.example.SecurityFilter</filter-class>
+</filter>
+
+<filter-mapping>
+    <filter-name>SecurityFilter</filter-name>
+    <url-pattern>/search.do</url-pattern> <!-- Đăng ký cho URL search.do -->
+    <url-pattern>/edit.do</url-pattern>   <!-- Đăng ký cho URL edit.do -->
+    <!-- Thêm các URL cần bảo vệ khác nếu cần -->
+</filter-mapping>
+Bước 3: Hoàn thiện về mặt client-side (optional)
+Nếu bạn muốn client-side có thể giúp kiểm tra (hoặc thông báo trước khi gửi request đến server), bạn có thể bổ sung thêm một đoạn mã JavaScript để hỗ trợ lọc các tab mới hoặc kiểm tra session.
+
+javascript
+Sao chép mã
+$(document).ready(function() {
+    const currentUrl = window.location.pathname;
+    const visitedUrls = JSON.parse(sessionStorage.getItem('visitedUrls')) || [];
+
+    // Kiểm tra nếu URL đã tồn tại trong sessionStorage
+    if (visitedUrls.includes(currentUrl)) {
+        alert("Not Found");
+        window.location.href = "/404"; // Redirect đến trang lỗi
+    } else {
+        // Nếu chưa tồn tại, thêm vào sessionStorage
+        visitedUrls.push(currentUrl);
+        sessionStorage.setItem('visitedUrls', JSON.stringify(visitedUrls));
+    }
+
+    // Khi chuyển sang edit.do, xóa search.do khỏi sessionStorage
+    if (currentUrl.includes('edit.do')) {
+        const updatedUrls = visitedUrls.filter(url => url !== '/search.do');
+        sessionStorage.setItem('visitedUrls', JSON.stringify(updatedUrls));
+    }
+});
+```
+```
 Nếu bạn gặp phải tình huống mà một lần gửi request AJAX lại khiến dữ liệu từ cơ sở dữ liệu (DB) bị load lại hai lần, có thể có một số nguyên nhân phổ biến dẫn đến hành vi này. Cụ thể, một lần gửi AJAX có thể kích hoạt một lần query đến DB từ phía server, nhưng sau đó lại xảy ra một lần query nữa sau khi gửi dữ liệu về từ AJAX.
 
 Dưới đây là một số nguyên nhân và cách khắc phục tình huống này.
