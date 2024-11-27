@@ -1,4 +1,192 @@
 ```
+
+Để xử lý yêu cầu khi người dùng nhấn Reload (F5) trên trình duyệt và buộc trang được chuyển hướng về search.do, bạn có thể sử dụng cơ chế Filter hoặc kết hợp với cách xử lý trạng thái trong session. Dưới đây là cách triển khai:
+
+1. Sử dụng Filter để kiểm tra trạng thái reload
+Bạn có thể thêm logic trong Filter để phát hiện khi người dùng reload trang và tự động chuyển hướng về search.do.
+
+Mã nguồn:
+java
+Sao chép mã
+import javax.servlet.Filter;
+import javax.servlet.FilterChain;
+import javax.servlet.FilterConfig;
+import javax.servlet.ServletException;
+import javax.servlet.ServletRequest;
+import javax.servlet.ServletResponse;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import javax.servlet.http.HttpSession;
+import java.io.IOException;
+
+public class ReloadRedirectFilter implements Filter {
+
+    private static final String ACTIVE_URL_KEY = "activeUrl"; // Key lưu URL hiện tại trong session
+    private static final String LAST_ACCESS_TIME_KEY = "lastAccessTime"; // Key lưu thời gian truy cập cuối cùng
+
+    @Override
+    public void init(FilterConfig filterConfig) throws ServletException {
+        // Khởi tạo filter nếu cần
+    }
+
+    @Override
+    public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain)
+            throws IOException, ServletException {
+        HttpServletRequest httpRequest = (HttpServletRequest) request;
+        HttpServletResponse httpResponse = (HttpServletResponse) response;
+
+        HttpSession session = httpRequest.getSession();
+        String activeUrl = (String) session.getAttribute(ACTIVE_URL_KEY);
+        String requestedUrl = httpRequest.getRequestURI();
+        Long lastAccessTime = (Long) session.getAttribute(LAST_ACCESS_TIME_KEY);
+
+        if (activeUrl == null || !requestedUrl.equals(activeUrl)) {
+            // Nếu không có URL hiện tại trong session, hoặc URL không khớp, lưu URL
+            session.setAttribute(ACTIVE_URL_KEY, requestedUrl);
+            session.setAttribute(LAST_ACCESS_TIME_KEY, System.currentTimeMillis());
+            chain.doFilter(request, response);
+        } else {
+            // Kiểm tra nếu yêu cầu là reload (dựa trên thời gian truy cập gần nhất)
+            long currentTime = System.currentTimeMillis();
+            if (lastAccessTime != null && currentTime - lastAccessTime < 500) {
+                // Nếu yêu cầu reload (trong khoảng thời gian ngắn), chuyển hướng về search.do
+                session.removeAttribute(ACTIVE_URL_KEY);
+                httpResponse.sendRedirect(httpRequest.getContextPath() + "/search.do");
+            } else {
+                // Cập nhật thời gian truy cập và cho phép request
+                session.setAttribute(LAST_ACCESS_TIME_KEY, currentTime);
+                chain.doFilter(request, response);
+            }
+        }
+    }
+
+    @Override
+    public void destroy() {
+        // Dọn dẹp filter nếu cần
+    }
+}
+2. Cấu hình Filter trong web.xml
+Thêm Filter vào tệp web.xml:
+
+xml
+Sao chép mã
+<filter>
+    <filter-name>ReloadRedirectFilter</filter-name>
+    <filter-class>com.yourpackage.ReloadRedirectFilter</filter-class>
+</filter>
+
+<filter-mapping>
+    <filter-name>ReloadRedirectFilter</filter-name>
+    <url-pattern>*.do</url-pattern> <!-- Áp dụng cho tất cả các URL kết thúc bằng .do -->
+</filter-mapping>
+3. Hoạt động của giải pháp
+Tab 1 mở search.do:
+ACTIVE_URL_KEY trong session được lưu là search.do.
+Người dùng chuyển sang edit.do:
+ACTIVE_URL_KEY được cập nhật thành edit.do.
+**Người dùng nhấn Reload (F5) trên tab đang mở edit.do:
+Filter phát hiện đây là hành động reload và chuyển hướng về search.do.
+4. Lưu ý
+Dựa vào thời gian:
+Sử dụng thời gian (lastAccessTime) để phát hiện hành động reload. Điều này hoạt động tốt với yêu cầu cơ bản, nhưng nếu có các yêu cầu đồng thời, bạn cần xử lý đồng bộ.
+Hạn chế ảnh hưởng UX:
+Nếu search.do yêu cầu người dùng đăng nhập hoặc thực hiện hành động cụ thể trước, hãy đảm bảo người dùng được chuyển hướng về đúng trạng thái mong muốn.
+5. Giải pháp bổ sung: JavaScript
+Nếu muốn triển khai một cách đơn giản hơn, bạn có thể kết hợp JavaScript để kiểm soát hành động reload trên trình duyệt:
+
+JavaScript (trong JSP hoặc HTML):
+javascript
+Sao chép mã
+window.addEventListener("beforeunload", function () {
+    // Khi người dùng nhấn reload, chuyển hướng về search.do
+    window.location.href = "/yourProjectPath/search.do";
+});
+Tuy nhiên, cách này không đảm bảo hoàn toàn nếu người dùng vô hiệu hóa JavaScript hoặc thực hiện reload bằng các công cụ khác (như developer tools).
+
+Bằng cách sử dụng Filter như trên, bạn có thể đảm bảo logic kiểm soát reload hoàn toàn nằm ở phía server và không phụ thuộc vào client.
+```
+```
+import javax.servlet.Filter;
+import javax.servlet.FilterChain;
+import javax.servlet.FilterConfig;
+import javax.servlet.ServletException;
+import javax.servlet.ServletRequest;
+import javax.servlet.ServletResponse;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import javax.servlet.http.HttpSession;
+import java.io.IOException;
+
+public class SingleUrlFilter implements Filter {
+
+    private static final String ACTIVE_URL_KEY = "activeUrl"; // Key lưu trạng thái URL trong session
+
+    @Override
+    public void init(FilterConfig filterConfig) throws ServletException {
+        // Khởi tạo filter (nếu cần)
+    }
+
+    @Override
+    public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain)
+            throws IOException, ServletException {
+        HttpServletRequest httpRequest = (HttpServletRequest) request;
+        HttpServletResponse httpResponse = (HttpServletResponse) response;
+
+        HttpSession session = httpRequest.getSession();
+        String activeUrl = (String) session.getAttribute(ACTIVE_URL_KEY); // URL hiện tại đang truy cập
+        String requestedUrl = httpRequest.getRequestURI(); // URL người dùng đang yêu cầu
+
+        if (activeUrl == null) {
+            // Nếu chưa có URL nào được lưu, lưu URL hiện tại và cho phép truy cập
+            session.setAttribute(ACTIVE_URL_KEY, requestedUrl);
+            chain.doFilter(request, response);
+        } else if (activeUrl.equals(requestedUrl)) {
+            // Nếu URL yêu cầu trùng với URL đang mở, cho phép truy cập
+            chain.doFilter(request, response);
+        } else {
+            // Nếu có URL khác đang mở, trả về lỗi 404
+            httpResponse.sendError(HttpServletResponse.SC_NOT_FOUND, "Not Found");
+        }
+    }
+
+    @Override
+    public void destroy() {
+        // Dọn dẹp filter (nếu cần)
+    }
+}
+Cấu hình Filter trong web.xml
+Thêm Filter vào tệp web.xml và áp dụng cho các URL bạn muốn bảo vệ.
+
+xml
+Sao chép mã
+<filter>
+    <filter-name>SingleUrlFilter</filter-name>
+    <filter-class>com.yourpackage.SingleUrlFilter</filter-class>
+</filter>
+
+<filter-mapping>
+    <filter-name>SingleUrlFilter</filter-name>
+    <url-pattern>*.do</url-pattern> <!-- Áp dụng cho tất cả các URL kết thúc bằng .do -->
+</filter-mapping>
+Xóa trạng thái URL khi chuyển đổi
+Khi người dùng hoàn thành một thao tác (ví dụ: nhấn vào nút Edit hoặc thực hiện một hành động khác), bạn cần xóa trạng thái URL hiện tại trong session. Điều này đảm bảo họ có thể truy cập URL mới.
+
+Trong action xử lý, thêm đoạn mã sau:
+
+java
+Sao chép mã
+// Xóa URL hiện tại trong session
+HttpSession session = request.getSession();
+session.removeAttribute("activeUrl");
+Ví dụ: Trong action xử lý edit.do, khi nhấn Edit, bạn xóa activeUrl trước khi chuyển hướng sang trang mới.
+
+Luồng hoạt động
+Tab 1: Người dùng truy cập search.do. Lúc này, search.do được lưu trong session là URL hiện tại (activeUrl).
+Tab 2: Nếu người dùng copy link search.do vào tab mới, filter sẽ phát hiện rằng activeUrl không trống và không khớp với URL mới. Kết quả trả về 404.
+Tab 1 tiếp tục: Người dùng nhấn vào Edit, action edit.do sẽ xóa trạng thái search.do khỏi session và lưu edit.do làm URL mới.
+
+```
+```
 Để giải quyết yêu cầu của bạn một cách thông minh và thực tế, có thể áp dụng một số kỹ thuật mà các ứng dụng web thường sử dụng trong thực tế để quản lý trạng thái người dùng, đặc biệt là khi liên quan đến các tab trình duyệt và session. Đây là một số giải pháp phổ biến và có tính ứng dụng cao để đáp ứng yêu cầu của bạn:
 
 1. Sử dụng Web Storage (SessionStorage hoặc LocalStorage) kết hợp với Session ID
