@@ -1,4 +1,81 @@
 ```
+package fjs.cs.util;
+
+import javax.servlet.*;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import javax.servlet.http.HttpSession;
+import java.io.IOException;
+
+public class SessionFilter implements Filter {
+
+    @Override
+    public void init(FilterConfig filterConfig) throws ServletException {}
+
+    @Override
+    public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain)
+            throws IOException, ServletException {
+        HttpServletRequest httpRequest = (HttpServletRequest) request;
+        HttpServletResponse httpResponse = (HttpServletResponse) response;
+
+        HttpSession session = httpRequest.getSession();
+        String activeUrl = (String) session.getAttribute("activeUrl");
+        String requestedUrl = httpRequest.getRequestURI();
+        String referer = httpRequest.getHeader("Referer");
+
+        // Bỏ qua các URL không cần xác thực
+        if (isPublicResource(requestedUrl)) {
+            chain.doFilter(request, response);
+            return;
+        }
+
+        // Kiểm tra nếu `activeUrl` chưa được thiết lập
+        if (activeUrl == null) {
+            session.setAttribute("activeUrl", requestedUrl);
+            chain.doFilter(request, response);
+            return;
+        }
+
+        // Nếu Referer không tồn tại, kiểm tra xem URL có phải search.do
+        if (referer == null) {
+            if (requestedUrl.endsWith("/search.do")) {
+                // Nếu là search.do, cho phép tiếp tục
+                chain.doFilter(request, response);
+                return;
+            } else {
+                // Ngược lại, chuyển hướng về search.do
+                httpResponse.sendRedirect(httpRequest.getContextPath() + "/search.do");
+                return;
+            }
+        }
+
+        // Nếu URL hiện tại khác activeUrl
+        if (!requestedUrl.equals(activeUrl)) {
+            // Trả về lỗi Not Found nếu người dùng cố truy cập URL khác
+            httpResponse.sendError(HttpServletResponse.SC_NOT_FOUND, "Not Found");
+            return;
+        }
+
+        // Nếu tất cả điều kiện hợp lệ, cho phép tiếp tục
+        chain.doFilter(request, response);
+    }
+
+    @Override
+    public void destroy() {}
+
+    private boolean isPublicResource(String uri) {
+        return uri.contains("login.do") ||   // Trang đăng nhập
+               uri.contains("register.do") || // Trang đăng ký (nếu có)
+               uri.contains("/static/") ||   // CSS, JS, hoặc hình ảnh
+               uri.endsWith(".css") ||       // File CSS
+               uri.endsWith(".js") ||        // File JS
+               uri.endsWith(".jpg") ||       // File JPG
+               uri.endsWith(".png");         // File PNG
+    }
+}
+
+```
+```
 
 Để xử lý yêu cầu khi người dùng nhấn Reload (F5) trên trình duyệt và buộc trang được chuyển hướng về search.do, bạn có thể sử dụng cơ chế Filter hoặc kết hợp với cách xử lý trạng thái trong session. Dưới đây là cách triển khai:
 
