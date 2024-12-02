@@ -1,4 +1,123 @@
 ```
+public class SearchAction extends Action {
+    private SearchDao searchDao;
+    
+    public void setSearchDao(SearchDao searchDao) {
+        this.searchDao = searchDao;
+    }
+
+    public ActionForward execute(ActionMapping mapping, ActionForm form,
+            HttpServletRequest request, HttpServletResponse response) throws IOException {
+        
+        // Lấy tabToken từ request
+        String tabToken = request.getParameter("tabToken");
+        System.out.println("tabToken from search form: " + tabToken);
+
+        // Kiểm tra nếu có tabToken và xử lý thêm nếu cần
+        if (tabToken != null) {
+            // Lưu hoặc xử lý tabToken nếu cần
+            HttpSession session = request.getSession();
+            session.setAttribute("tabToken", tabToken);
+        }
+
+        // Các logic tìm kiếm khác ở đây
+        // Ví dụ: lấy thông tin khách hàng từ form và tìm kiếm trong database
+        String customerName = request.getParameter("customerName");
+
+        // Tiếp tục với các logic khác
+
+        return mapping.findForward("success");
+    }
+}
+
+```
+```
+<!-- search.jsp -->
+<html>
+<head>
+    <title>Search</title>
+</head>
+<body>
+    <form action="/search" method="post">
+        <!-- Các trường input cho tìm kiếm -->
+        <label for="customerName">Customer Name:</label>
+        <input type="text" name="customerName" id="customerName" />
+
+        <label for="birthday">Birthday:</label>
+        <input type="date" name="birthday" id="birthday" />
+
+        <!-- Đặt giá trị của tabToken vào input ẩn -->
+        <input type="hidden" name="tabToken" value="${sessionScope.tabToken}" />
+
+        <button type="submit">Search</button>
+    </form>
+</body>
+</html>
+
+```
+```
+public class LoginAction extends Action {
+    public ActionForward execute(ActionMapping mapping, ActionForm form,
+            HttpServletRequest request, HttpServletResponse response) throws IOException {
+        
+        // Lấy tabToken từ request
+        String tabToken = request.getParameter("tabToken");
+        System.out.println("tabToken from login form: " + tabToken);
+
+        // Kiểm tra và xử lý token (lưu vào session hoặc xử lý tùy theo yêu cầu)
+        HttpSession session = request.getSession();
+        if (tabToken != null) {
+            session.setAttribute("tabToken", tabToken);  // Lưu tabToken vào session
+        }
+
+        // Thực hiện các logic đăng nhập khác, ví dụ: kiểm tra username và password
+
+        return mapping.findForward("success");
+    }
+}
+
+```
+```
+<!-- login.jsp -->
+<html>
+<head>
+    <title>Login</title>
+    <script>
+        // Khi trang được load
+        window.onload = function() {
+            // Kiểm tra xem tabToken đã tồn tại trong sessionStorage chưa
+            var token = sessionStorage.getItem("tabToken");
+            
+            // Nếu chưa có token, tạo token mới
+            if (!token) {
+                token = new Date().getTime();  // Sử dụng thời gian hiện tại làm token, hoặc UUID.randomUUID()
+                sessionStorage.setItem("tabToken", token);  // Lưu token vào sessionStorage
+            }
+            
+            // Đặt giá trị của tabToken vào trường input ẩn trong form
+            document.getElementById('tabToken').value = token;
+        };
+    </script>
+</head>
+<body>
+    <form action="/login" method="post">
+        <!-- Các trường input cho username và password -->
+        <label for="username">Username:</label>
+        <input type="text" name="userID" id="username" />
+
+        <label for="password">Password:</label>
+        <input type="password" name="passWord" id="password" />
+
+        <!-- Input ẩn để gửi token -->
+        <input type="hidden" name="tabToken" id="tabToken" />
+
+        <button type="submit">Login</button>
+    </form>
+</body>
+</html>
+
+```
+```
 package fjs.cs.util;
 
 import javax.servlet.*;
