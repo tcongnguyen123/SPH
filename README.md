@@ -1,4 +1,207 @@
 ```
+ể hạn chế mỗi IP máy tính chỉ có thể đăng nhập một lần, bạn có thể sử dụng một cơ chế như sau:
+
+Cách thực hiện
+1. Sử dụng Map để quản lý trạng thái đăng nhập theo IP
+Dùng một ConcurrentHashMap trên server để lưu trạng thái đăng nhập của từng IP. Key sẽ là địa chỉ IP của máy, và value là thông tin phiên đăng nhập hoặc trạng thái đăng nhập.
+
+java
+Sao chép mã
+import java.util.concurrent.ConcurrentHashMap;
+
+public class LoginManager {
+    private static final ConcurrentHashMap<String, String> loggedInIPs = new ConcurrentHashMap<>();
+
+    public static boolean isLoggedIn(String ipAddress) {
+        return loggedInIPs.containsKey(ipAddress);
+    }
+
+    public static void login(String ipAddress, String userName) {
+        loggedInIPs.put(ipAddress, userName);
+    }
+
+    public static void logout(String ipAddress) {
+        loggedInIPs.remove(ipAddress);
+    }
+
+    public static String getLoggedInUser(String ipAddress) {
+        return loggedInIPs.get(ipAddress);
+    }
+}
+2. Kiểm tra trạng thái trước khi đăng nhập
+Trong LoginAction, kiểm tra xem IP của người dùng đã tồn tại trong loggedInIPs hay chưa. Nếu tồn tại, không cho phép đăng nhập lại.
+
+Ví dụ trong LoginAction:
+
+java
+Sao chép mã
+@Override
+public ActionForward execute(ActionMapping mapping, ActionForm form,
+                             HttpServletRequest request, HttpServletResponse response) throws Exception {
+    HttpSession session = request.getSession();
+    String userName = request.getParameter("userID");
+    String password = request.getParameter("password");
+    String ipAddress = request.getRemoteAddr(); // Lấy địa chỉ IP của client
+
+    // Kiểm tra nếu IP đã đăng nhập
+    if (LoginManager.isLoggedIn(ipAddress)) {
+        request.setAttribute("error", "This IP is already logged in. Please log out first.");
+        return mapping.findForward("error");
+    }
+
+    // Kiểm tra thông tin đăng nhập (ví dụ: từ cơ sở dữ liệu)
+    boolean isValid = checkCredentials(userName, password);
+    if (!isValid) {
+        request.setAttribute("error", "Invalid username or password.");
+        return mapping.findForward("login");
+    }
+
+    // Đăng nhập thành công
+    LoginManager.login(ipAddress, userName);
+    session.setAttribute("user", userName);
+
+    return mapping.findForward("success");
+}
+3. Xóa trạng thái đăng nhập khi người dùng đăng xuất
+Khi người dùng đăng xuất, xóa địa chỉ IP khỏi danh sách trong LoginManager.
+
+Ví dụ trong LogoutAction:
+
+java
+Sao chép mã
+@Override
+public ActionForward execute(ActionMapping mapping, ActionForm form,
+                             HttpServletRequest request, HttpServletResponse response) throws Exception {
+    HttpSession session = request.getSession(false);
+    if (session != null) {
+        String ipAddress = request.getRemoteAddr();
+        LoginManager.logout(ipAddress);
+        session.invalidate();
+    }
+    return mapping.findForward("login");
+}
+4. Tự động xử lý khi session hết hạn
+Kết hợp với HttpSessionListener để tự động xóa IP khỏi danh sách khi session hết hạn.
+
+Ví dụ:
+
+java
+Sao chép mã
+@Override
+public void sessionDestroyed(HttpSessionEvent event) {
+    HttpSession session = event.getSession();
+    String ipAddress = (String) session.getAttribute("ipAddress");
+    if (ipAddress != null) {
+        LoginManager.logout(ipAddress);
+    }
+}
+5. Kiểm tra ở các trang khác (Middleware)
+Đảm bảo người dùng không thể truy cập các trang khác mà không đăng nhập bằng cách kiểm tra trạng thái ở mọi Action.
+
+Ví dụ:
+
+java
+Sao chép mã
+@Override
+public ActionForward execute(ActionMapping mapping, ActionForm form,
+                             HttpServletRequest request, HttpServletResponse response) throws Exception {
+    HttpSession session = request.getSession(false);
+    String ipAddress = request.getRemoteAddr();
+
+    // Kiểm tra nếu IP không tồn tại trong danh sách đăng nhập
+    if (!LoginManager.isLoggedIn(ipAddress)) {
+        response.sendRedirect("login.do");
+        return null;
+    }
+
+    return mapping.findForward("success");
+}
+Lợi ích
+Quản lý chặt chẽ: Đảm bảo mỗi IP chỉ đăng nhập một lần, phù hợp với yêu cầu.
+Dễ mở rộng: Có thể tùy chỉnh để áp dụng thêm các quy tắc hoặc giới hạn theo nhu cầu.
+An toàn: Session tự động hủy hoặc bị vô hiệu hóa khi người dùng đóng trình duyệt hoặc không hoạt động.
+Lưu ý
+Nếu nhiều người dùng có chung IP (ví dụ: qua NAT), cơ chế này có thể hạn chế quá mức.
+Nên kiểm tra IP thực tế bằng cách sử dụng X-Forwarded-For nếu có proxy/ngắn dòng.
+```
+```
+1. Phương pháp client-side: Gửi thông báo logout khi đóng tab hoặc trình duyệt
+Bạn có thể sử dụng sự kiện beforeunload hoặc unload của trình duyệt để thông báo cho server rằng người dùng đã rời khỏi ứng dụng và thực hiện hành động logout.
+
+JavaScript (Client-side):
+javascript
+Sao chép mã
+window.addEventListener("beforeunload", function () {
+    // Gửi yêu cầu logout đến server khi người dùng đóng tab
+    navigator.sendBeacon('/logout', JSON.stringify({ tabToken: window.name }));
+});
+Giải thích:
+
+sendBeacon đảm bảo rằng dữ liệu được gửi đến server ngay cả khi tab bị đóng.
+window.name hoặc sessionStorage có thể lưu tabToken để server nhận diện tab đang hoạt động.
+2. Phương pháp server-side: Thiết lập thời gian sống của phiên (session timeout)
+Trên server, bạn có thể định cấu hình thời gian sống của phiên (session) để tự động hết hạn nếu người dùng không hoạt động trong một khoảng thời gian nhất định.
+
+Java (Server-side):
+Trong file web.xml:
+
+xml
+Sao chép mã
+<session-config>
+    <session-timeout>15</session-timeout> <!-- Tự động logout sau 15 phút không hoạt động -->
+</session-config>
+Nếu người dùng không gửi bất kỳ yêu cầu nào trong khoảng thời gian 15 phút, session sẽ hết hạn và họ sẽ tự động bị logout.
+3. Kết hợp cả hai phương pháp:
+Bạn có thể kết hợp:
+
+Gửi yêu cầu logout khi đóng tab (client-side).
+Cấu hình session timeout trên server để xử lý trường hợp người dùng không hoạt động nhưng không đóng tab.
+Hoàn chỉnh:
+Client-side (JavaScript):
+
+javascript
+Sao chép mã
+// Lắng nghe sự kiện đóng tab hoặc trình duyệt
+window.addEventListener("beforeunload", function () {
+    navigator.sendBeacon('/logout', JSON.stringify({ tabToken: window.name }));
+});
+
+// Tạo tabToken riêng cho mỗi tab và lưu vào sessionStorage
+if (!window.name) {
+    window.name = 'tab_' + new Date().getTime(); // Tạo tabToken duy nhất
+}
+
+// Kiểm tra tabToken
+console.log("Tab Token:", window.name);
+Server-side (Java):
+
+Trong LogoutAction, xử lý yêu cầu logout:
+
+java
+Sao chép mã
+public class LogoutAction extends Action {
+    public ActionForward execute(ActionMapping mapping, ActionForm form,
+                                 HttpServletRequest request, HttpServletResponse response) {
+        HttpSession session = request.getSession(false);
+        if (session != null) {
+            session.invalidate(); // Hủy session của người dùng
+        }
+        return mapping.findForward("login");
+    }
+}
+Cấu hình session timeout trong web.xml:
+
+xml
+Sao chép mã
+<session-config>
+    <session-timeout>15</session-timeout> <!-- Hết hạn sau 15 phút -->
+</session-config>
+Lưu ý:
+TabToken: Đảm bảo mỗi tab có một tabToken duy nhất (có thể sử dụng window.name hoặc UUID).
+Session quản lý: Đảm bảo server xóa thông tin tab khỏi HashMap hoặc session khi người dùng logout.
+Thời gian sống của session: Không nên đặt quá dài để tránh lạm dụng tài nguyên.
+```
+```
 <!-- login.jsp -->
 <html>
 <head>
