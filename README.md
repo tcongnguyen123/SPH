@@ -1,4 +1,184 @@
 ```
+1. Cài đặt môi trường
+Frontend: Vue.js
+
+Cài Node.js (kèm npm).
+Cài Vue CLI: npm install -g @vue/cli.
+Tạo dự án Vue mới: vue create login-app.
+Backend: .NET (C#)
+
+Cài đặt .NET SDK (tải từ trang chủ Microsoft).
+Tạo dự án Web API:
+bash
+Sao chép mã
+dotnet new webapi -n LoginAPI
+cd LoginAPI
+Cài đặt thư viện hỗ trợ kết nối SQL Server:
+bash
+Sao chép mã
+dotnet add package Microsoft.EntityFrameworkCore.SqlServer
+dotnet add package Microsoft.EntityFrameworkCore.Tools
+Database: SQL Server
+
+Sử dụng SQL Server Management Studio (SSMS) để quản lý cơ sở dữ liệu.
+2. Thiết kế cơ sở dữ liệu
+Tạo bảng trong SQL Server cho việc lưu trữ thông tin người dùng:
+
+sql
+Sao chép mã
+CREATE DATABASE LoginDB;
+
+USE LoginDB;
+
+CREATE TABLE Users (
+    Id INT PRIMARY KEY IDENTITY,
+    Username NVARCHAR(50) NOT NULL UNIQUE,
+    PasswordHash NVARCHAR(255) NOT NULL
+);
+3. Backend: Xây dựng API với .NET
+Cấu hình kết nối database: Thêm chuỗi kết nối vào appsettings.json:
+
+json
+Sao chép mã
+{
+  "ConnectionStrings": {
+    "DefaultConnection": "Server=YOUR_SERVER;Database=LoginDB;Trusted_Connection=True;"
+  }
+}
+Tạo Model và DbContext:
+
+csharp
+Sao chép mã
+using Microsoft.EntityFrameworkCore;
+
+public class User
+{
+    public int Id { get; set; }
+    public string Username { get; set; }
+    public string PasswordHash { get; set; }
+}
+
+public class AppDbContext : DbContext
+{
+    public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
+    public DbSet<User> Users { get; set; }
+}
+Thêm API đăng nhập:
+
+Thêm controller: LoginController.
+Logic kiểm tra đăng nhập:
+csharp
+Sao chép mã
+[ApiController]
+[Route("api/[controller]")]
+public class LoginController : ControllerBase
+{
+    private readonly AppDbContext _context;
+
+    public LoginController(AppDbContext context)
+    {
+        _context = context;
+    }
+
+    [HttpPost("login")]
+    public async Task<IActionResult> Login([FromBody] LoginRequest request)
+    {
+        var user = await _context.Users.FirstOrDefaultAsync(u => u.Username == request.Username);
+        if (user == null || !BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
+        {
+            return Unauthorized(new { message = "Invalid username or password" });
+        }
+
+        return Ok(new { message = "Login successful" });
+    }
+}
+
+public class LoginRequest
+{
+    public string Username { get; set; }
+    public string Password { get; set; }
+}
+Chạy dự án:
+
+bash
+Sao chép mã
+dotnet run
+4. Frontend: Xây dựng giao diện với Vue.js
+Cài đặt axios để gọi API:
+
+bash
+Sao chép mã
+npm install axios
+Tạo component Login:
+
+File: src/components/Login.vue
+vue
+Sao chép mã
+<template>
+  <div class="login-container">
+    <form @submit.prevent="login">
+      <h2>Login</h2>
+      <div>
+        <label for="username">Username</label>
+        <input id="username" v-model="username" type="text" required />
+      </div>
+      <div>
+        <label for="password">Password</label>
+        <input id="password" v-model="password" type="password" required />
+      </div>
+      <button type="submit">Login</button>
+      <p v-if="errorMessage">{{ errorMessage }}</p>
+    </form>
+  </div>
+</template>
+
+<script>
+import axios from 'axios';
+
+export default {
+  data() {
+    return {
+      username: '',
+      password: '',
+      errorMessage: ''
+    };
+  },
+  methods: {
+    async login() {
+      try {
+        const response = await axios.post('http://localhost:5000/api/login/login', {
+          username: this.username,
+          password: this.password
+        });
+        alert(response.data.message);
+      } catch (error) {
+        this.errorMessage = error.response?.data?.message || 'Login failed';
+      }
+    }
+  }
+};
+</script>
+
+<style>
+/* Thêm style tại đây */
+</style>
+5. Chạy ứng dụng
+Frontend:
+
+bash
+Sao chép mã
+npm run serve
+Truy cập http://localhost:8080.
+
+Backend:
+
+.NET API chạy ở http://localhost:5000.
+6. Bảo mật nâng cao
+Hash mật khẩu: Dùng BCrypt khi lưu mật khẩu vào database.
+Token hóa: Sử dụng JWT để quản lý session.
+Nếu cần hướng dẫn chi tiết hơn hoặc mở rộng, hãy cho mình biết! 😊
+```
+```
 ể hạn chế mỗi IP máy tính chỉ có thể đăng nhập một lần, bạn có thể sử dụng một cơ chế như sau:
 
 Cách thực hiện
