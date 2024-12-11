@@ -1,4 +1,332 @@
 ```
+v-bind:
+
+Ràng buộc thuộc tính hoặc class động vào một giá trị từ dữ liệu hoặc biểu thức.
+v-model:
+
+Thiết lập ràng buộc hai chiều giữa dữ liệu và giao diện người dùng (two-way binding).
+v-for:
+
+Lặp qua danh sách hoặc đối tượng để tạo các phần tử DOM lặp lại.
+v-if, v-else-if, v-else:
+
+Điều kiện hiển thị các phần tử DOM dựa trên giá trị logic.
+v-show:
+
+Tương tự v-if, nhưng chỉ thay đổi thuộc tính CSS display thay vì thêm/xóa phần tử DOM.
+v-on (hoặc @):
+
+Lắng nghe và xử lý các sự kiện DOM (tương đương với onClick trong React).
+v-slot:
+
+Định nghĩa nội dung tùy chỉnh trong thành phần con (slots), tương tự như props.children nhưng linh hoạt hơn.
+computed:
+
+Tính toán giá trị dựa trên dữ liệu hiện tại, được tối ưu hóa để giảm thiểu việc tính toán lại (memoized).
+watch:
+
+Theo dõi sự thay đổi của dữ liệu và thực thi các phản ứng phụ khi có thay đổi.
+ref:
+
+Truy cập trực tiếp vào phần tử DOM hoặc thành phần con trong Vue.
+emit:
+
+Gửi sự kiện từ thành phần con lên thành phần cha (thay thế callback trong React).
+props:
+
+Truyền dữ liệu từ thành phần cha xuống thành phần con, tương tự React nhưng đơn giản hóa cú pháp.
+Directives (Chỉ thị):
+
+Là các từ khóa bắt đầu với v- như v-bind, v-model,... dùng để thêm logic vào template.
+setup:
+
+Được sử dụng trong Composition API, tập trung logic và trạng thái của thành phần trong một hàm duy nhất.
+template:
+
+Vue sử dụng template để khai báo giao diện người dùng thay vì JSX như trong React.
+Filters:
+
+Chuyển đổi dữ liệu trong các template (bị loại bỏ trong Vue 3 nhưng vẫn phổ biến trong Vue 2).
+Reactive System:
+
+Vue cung cấp cơ chế phản ứng lại thay đổi dữ liệu (reactivity) tự động mà không cần sử dụng setState như React.
+Lifecycle Hooks:
+
+Vue có các hook như mounted, created, updated, và destroyed, tương tự nhưng có tên khác so với React.
+Transition & Animation:
+
+Vue hỗ trợ tích hợp sẵn các hiệu ứng chuyển đổi và hoạt hình với các directive như v-enter và v-leave.
+Mixins:
+
+Tái sử dụng logic giữa các thành phần (đã được thay thế một phần bởi Composition API trong Vue 3).
+```
+```
+<template>
+  <div class="hello">
+    <h1>{{ msg }}</h1>
+    <h2>Essential Links</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Link Name</th>
+          <th>URL</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr v-for="(link, index) in links" :key="index">
+          <td>{{ link.name }}</td>
+          <td>
+            <a :href="link.url" target="_blank">{{ link.url }}</a>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</template>
+
+<script>
+export default {
+  name: 'HelloWorld',
+  data () {
+    return {
+      msg: 'Welcome to Your Vue.js App',
+      links: [
+        { name: 'Core Docs', url: 'https://vuejs.org' },
+        { name: 'Forum', url: 'https://forum.vuejs.org' },
+        { name: 'Community Chat', url: 'https://chat.vuejs.org' },
+        { name: 'Twitter', url: 'https://twitter.com/vuejs' },
+        { name: 'Docs for This Template', url: 'http://vuejs-templates.github.io/webpack/' },
+        { name: 'vue-router', url: 'http://router.vuejs.org/' },
+        { name: 'vuex', url: 'http://vuex.vuejs.org/' },
+        { name: 'vue-loader', url: 'http://vue-loader.vuejs.org/' },
+        { name: 'awesome-vue', url: 'https://github.com/vuejs/awesome-vue' }
+      ]
+    }
+  }
+}
+</script>
+
+<style scoped>
+h1, h2 {
+  font-weight: normal;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 20px 0;
+}
+th, td {
+  border: 1px solid #ddd;
+  padding: 8px;
+  text-align: left;
+}
+th {
+  background-color: #f4f4f4;
+}
+a {
+  color: #42b983;
+}
+</style>
+
+```
+```
+<template>
+  <div :class="openNavigation ? 'header open' : 'header'">
+    <div class="header-container">
+      <a class="logo" href="#hero">
+        <img :src="brainwave" width="190" height="40" alt="Brainwave" />
+      </a>
+
+      <nav :class="openNavigation ? 'navigation open' : 'navigation'">
+        <div class="nav-links">
+          <a
+            v-for="item in navigation"
+            :key="item.id"
+            :href="item.url"
+            @click="handleClick"
+            :class="item.url === currentHash ? 'nav-link active' : 'nav-link'"
+          >
+            {{ item.title }}
+          </a>
+        </div>
+
+        <HamburgerMenu />
+      </nav>
+
+      <a href="#signup" class="signup-link">New account</a>
+      <Button class="signin-button" href="#login">Sign in</Button>
+
+      <Button class="menu-toggle" px="px-3" @click="toggleNavigation">
+        <MenuSvg :openNavigation="openNavigation" />
+      </Button>
+    </div>
+  </div>
+</template>
+
+<script>
+import { ref, computed } from 'vue';
+import { useRoute } from 'vue-router';
+import { disablePageScroll, enablePageScroll } from 'scroll-lock';
+import { brainwave } from '../assets';
+import { navigation } from '../constants';
+import Button from './Button.vue';
+import MenuSvg from '../assets/svg/MenuSvg.vue';
+import HamburgerMenu from './design/Header.vue';
+
+export default {
+  name: 'Header',
+  components: {
+    Button,
+    MenuSvg,
+    HamburgerMenu
+  },
+  setup() {
+    const route = useRoute();
+    const openNavigation = ref(false);
+    const currentHash = computed(() => route.hash);
+
+    const toggleNavigation = () => {
+      if (openNavigation.value) {
+        openNavigation.value = false;
+        enablePageScroll();
+      } else {
+        openNavigation.value = true;
+        disablePageScroll();
+      }
+    };
+
+    const handleClick = () => {
+      if (!openNavigation.value) return;
+
+      enablePageScroll();
+      openNavigation.value = false;
+    };
+
+    return {
+      brainwave,
+      navigation,
+      openNavigation,
+      currentHash,
+      toggleNavigation,
+      handleClick
+    };
+  }
+};
+</script>
+
+<style scoped>
+.header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  z-index: 50;
+  background-color: rgba(34, 34, 34, 0.9);
+  border-bottom: 1px solid #ccc;
+  backdrop-filter: blur(10px);
+}
+
+.header.open {
+  background-color: #222;
+}
+
+.header-container {
+  display: flex;
+  align-items: center;
+  padding: 1rem 2rem;
+}
+
+.logo {
+  display: block;
+  width: 12rem;
+  margin-right: 2rem;
+}
+
+.navigation {
+  display: none;
+}
+
+.navigation.open {
+  display: flex;
+  position: fixed;
+  top: 5rem;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #222;
+}
+
+.nav-links {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  margin: auto;
+}
+
+.nav-link {
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 1.25rem;
+  padding: 1rem;
+  transition: color 0.3s;
+}
+
+.nav-link:hover {
+  color: #ff6347;
+}
+
+.nav-link.active {
+  color: #fff;
+}
+
+.signup-link {
+  display: none;
+  color: rgba(255, 255, 255, 0.5);
+  transition: color 0.3s;
+}
+
+.signup-link:hover {
+  color: #fff;
+}
+
+.signin-button {
+  display: none;
+}
+
+.menu-toggle {
+  margin-left: auto;
+}
+
+@media (min-width: 1024px) {
+  .navigation {
+    display: flex;
+    position: static;
+    flex: 1;
+    background: transparent;
+  }
+
+  .nav-links {
+    flex-direction: row;
+  }
+
+  .signup-link {
+    display: block;
+    margin-right: 2rem;
+  }
+
+  .signin-button {
+    display: flex;
+  }
+
+  .menu-toggle {
+    display: none;
+  }
+}
+</style>
+
+```
+```
 1. Cài đặt môi trường
 Frontend: Vue.js
 
