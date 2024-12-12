@@ -1,4 +1,728 @@
 ```
+Cập nhật BlogList.vue với tính năng xóa bài viết
+Cập nhật BlogList.vue để thêm nút xóa bài viết:
+
+vue
+Sao chép mã
+<template>
+  <div>
+    <h1>Danh sách bài viết</h1>
+    <div v-for="post in posts" :key="post.id" class="post">
+      <h2>{{ post.title }}</h2>
+      <p>{{ post.content.slice(0, 100) }}...</p>
+      <router-link :to="`/post/${post.id}`">Xem thêm</router-link>
+      <button @click="$emit('delete-post', post.id)">Xóa</button>
+    </div>
+  </div>
+</template>
+
+<script>
+export default {
+  props: ["posts"],
+};
+</script>
+
+<style>
+.post {
+  border: 1px solid #ccc;
+  padding: 10px;
+  margin-bottom: 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+button {
+  margin-left: 10px;
+  color: white;
+  background-color: red;
+  border: none;
+  padding: 5px 10px;
+  cursor: pointer;
+}
+button:hover {
+  background-color: darkred;
+}
+</style>
+Cập nhật Home.vue để xử lý xóa bài viết
+Thêm phương thức deletePost trong Home.vue:
+
+vue
+Sao chép mã
+<template>
+  <div>
+    <BlogForm @add-post="addPost" />
+    <BlogList :posts="posts" @delete-post="deletePost" />
+  </div>
+</template>
+
+<script>
+import BlogList from "../components/BlogList.vue";
+import BlogForm from "../components/BlogForm.vue";
+
+export default {
+  components: { BlogList, BlogForm },
+  data() {
+    return {
+      posts: [],
+    };
+  },
+  methods: {
+    addPost(post) {
+      this.posts.push(post);
+      this.savePosts();
+    },
+    deletePost(id) {
+      this.posts = this.posts.filter((post) => post.id !== id);
+      this.savePosts();
+    },
+    savePosts() {
+      localStorage.setItem("posts", JSON.stringify(this.posts));
+    },
+    loadPosts() {
+      const savedPosts = localStorage.getItem("posts");
+      if (savedPosts) {
+        this.posts = JSON.parse(savedPosts);
+      }
+    },
+  },
+  created() {
+    this.loadPosts();
+  },
+};
+</script>
+Thêm tính năng chỉnh sửa bài viết
+Cập nhật BlogForm.vue để hỗ trợ chỉnh sửa bài viết:
+
+vue
+Sao chép mã
+<template>
+  <div>
+    <h2>{{ isEditing ? "Chỉnh sửa bài viết" : "Thêm bài viết mới" }}</h2>
+    <form @submit.prevent="submitForm">
+      <div>
+        <label for="title">Tiêu đề:</label>
+        <input v-model="title" id="title" required />
+      </div>
+      <div>
+        <label for="content">Nội dung:</label>
+        <textarea v-model="content" id="content" required></textarea>
+      </div>
+      <button type="submit">
+        {{ isEditing ? "Cập nhật bài viết" : "Thêm bài viết" }}
+      </button>
+      <button v-if="isEditing" @click.prevent="cancelEdit">Hủy</button>
+    </form>
+  </div>
+</template>
+
+<script>
+export default {
+  props: ["editPost"],
+  data() {
+    return {
+      title: "",
+      content: "",
+      isEditing: false,
+      postId: null,
+    };
+  },
+  watch: {
+    editPost(newPost) {
+      if (newPost) {
+        this.title = newPost.title;
+        this.content = newPost.content;
+        this.isEditing = true;
+        this.postId = newPost.id;
+      }
+    },
+  },
+  methods: {
+    submitForm() {
+      const post = {
+        id: this.postId || Date.now(),
+        title: this.title,
+        content: this.content,
+      };
+      this.$emit("submit-post", post);
+      this.resetForm();
+    },
+    cancelEdit() {
+      this.resetForm();
+    },
+    resetForm() {
+      this.title = "";
+      this.content = "";
+      this.isEditing = false;
+      this.postId = null;
+    },
+  },
+};
+</script>
+Cập nhật Home.vue để quản lý chỉnh sửa bài viết:
+
+vue
+Sao chép mã
+<template>
+  <div>
+    <BlogForm @submit-post="handlePostSubmit" :edit-post="editPost" />
+    <BlogList
+      :posts="posts"
+      @delete-post="deletePost"
+      @edit-post="startEditPost"
+    />
+  </div>
+</template>
+
+<script>
+import BlogList from "../components/BlogList.vue";
+import BlogForm from "../components/BlogForm.vue";
+
+export default {
+  components: { BlogList, BlogForm },
+  data() {
+    return {
+      posts: [],
+      editPost: null,
+    };
+  },
+  methods: {
+    handlePostSubmit(post) {
+      if (post.id) {
+        // Update bài viết
+        const index = this.posts.findIndex((p) => p.id === post.id);
+        if (index !== -1) this.posts.splice(index, 1, post);
+      } else {
+        // Thêm bài viết mới
+        this.posts.push(post);
+      }
+      this.savePosts();
+    },
+    startEditPost(postId) {
+      this.editPost = this.posts.find((post) => post.id === postId);
+    },
+    deletePost(id) {
+      this.posts = this.posts.filter((post) => post.id !== id);
+      this.savePosts();
+    },
+    savePosts() {
+      localStorage.setItem("posts", JSON.stringify(this.posts));
+    },
+    loadPosts() {
+      const savedPosts = localStorage.getItem("posts");
+      if (savedPosts) {
+        this.posts = JSON.parse(savedPosts);
+      }
+    },
+  },
+  created() {
+    this.loadPosts();
+  },
+};
+</script>
+Cải thiện giao diện với TailwindCSS
+Cài đặt TailwindCSS:
+
+bash
+Sao chép mã
+npm install -D tailwindcss postcss autoprefixer
+npx tailwindcss init
+Cấu hình tailwind.config.js:
+
+javascript
+Sao chép mã
+module.exports = {
+  content: ["./src/**/*.{vue,js,ts,jsx,tsx}"],
+  theme: {
+    extend: {},
+  },
+  plugins: [],
+};
+Thêm TailwindCSS vào src/assets/tailwind.css:
+
+css
+Sao chép mã
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+Cập nhật main.js để import TailwindCSS:
+
+javascript
+Sao chép mã
+import "./assets/tailwind.css";
+Bây giờ, bạn có thể sử dụng các class Tailwind để cải thiện giao diện.
+
+Thêm hiệu ứng chuyển đổi trang
+Sử dụng transition từ Vue.js:
+
+App.vue:
+
+vue
+Sao chép mã
+<template>
+  <div id="app">
+    <transition name="fade" mode="out-in">
+      <router-view />
+    </transition>
+  </div>
+</template>
+
+<style>
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.5s;
+}
+.fade-enter,
+.fade-leave-to {
+  opacity: 0;
+}
+</style>
+Triển khai blog
+Để triển khai, bạn có thể dùng Netlify hoặc Vercel:
+
+bash
+Sao chép mã
+npm run build
+Upload thư mục dist lên dịch vụ triển khai.
+
+Giờ đây, bạn đã có một blog đầy đủ chức năng với giao diện đẹp và dễ sử dụng! 🚀
+```
+```
+1. Tạo dự án Vue.js
+Trước tiên, bạn cần tạo dự án Vue.js mới:
+
+bash
+Sao chép mã
+vue create vue-blog
+cd vue-blog
+npm run serve
+2. Cấu trúc dự án
+Tạo cấu trúc thư mục sau trong thư mục src:
+
+css
+Sao chép mã
+src/
+├── components/
+│   ├── BlogList.vue
+│   ├── BlogDetail.vue
+│   ├── BlogForm.vue
+├── views/
+│   ├── Home.vue
+│   ├── Post.vue
+├── router/
+│   └── index.js
+├── App.vue
+├── main.js
+3. Cài đặt Vue Router
+Cài đặt Vue Router để điều hướng giữa các trang:
+
+bash
+Sao chép mã
+npm install vue-router
+File src/router/index.js:
+
+javascript
+Sao chép mã
+import Vue from "vue";
+import VueRouter from "vue-router";
+import Home from "../views/Home.vue";
+import Post from "../views/Post.vue";
+
+Vue.use(VueRouter);
+
+const routes = [
+  { path: "/", name: "Home", component: Home },
+  { path: "/post/:id", name: "Post", component: Post },
+];
+
+const router = new VueRouter({
+  mode: "history",
+  routes,
+});
+
+export default router;
+Cập nhật src/main.js:
+
+javascript
+Sao chép mã
+import Vue from "vue";
+import App from "./App.vue";
+import router from "./router";
+
+Vue.config.productionTip = false;
+
+new Vue({
+  router,
+  render: (h) => h(App),
+}).$mount("#app");
+4. Component BlogList.vue
+Danh sách các bài viết hiển thị trên trang chủ.
+
+File src/components/BlogList.vue:
+
+vue
+Sao chép mã
+<template>
+  <div>
+    <h1>Danh sách bài viết</h1>
+    <div v-for="post in posts" :key="post.id" class="post">
+      <h2>{{ post.title }}</h2>
+      <p>{{ post.content.slice(0, 100) }}...</p>
+      <router-link :to="`/post/${post.id}`">Xem thêm</router-link>
+    </div>
+  </div>
+</template>
+
+<script>
+export default {
+  props: ["posts"],
+};
+</script>
+
+<style>
+.post {
+  border: 1px solid #ccc;
+  padding: 10px;
+  margin-bottom: 10px;
+}
+</style>
+5. Component BlogDetail.vue
+Hiển thị chi tiết bài viết.
+
+File src/components/BlogDetail.vue:
+
+vue
+Sao chép mã
+<template>
+  <div v-if="post">
+    <h1>{{ post.title }}</h1>
+    <p>{{ post.content }}</p>
+    <router-link to="/">Quay lại danh sách</router-link>
+  </div>
+</template>
+
+<script>
+export default {
+  props: ["post"],
+};
+</script>
+6. Component BlogForm.vue
+Form thêm bài viết mới.
+
+File src/components/BlogForm.vue:
+
+vue
+Sao chép mã
+<template>
+  <div>
+    <h2>Thêm bài viết mới</h2>
+    <form @submit.prevent="submitForm">
+      <div>
+        <label for="title">Tiêu đề:</label>
+        <input v-model="title" id="title" required />
+      </div>
+      <div>
+        <label for="content">Nội dung:</label>
+        <textarea v-model="content" id="content" required></textarea>
+      </div>
+      <button type="submit">Thêm bài viết</button>
+    </form>
+  </div>
+</template>
+
+<script>
+export default {
+  data() {
+    return {
+      title: "",
+      content: "",
+    };
+  },
+  methods: {
+    submitForm() {
+      const newPost = {
+        id: Date.now(),
+        title: this.title,
+        content: this.content,
+      };
+      this.$emit("add-post", newPost);
+      this.title = "";
+      this.content = "";
+    },
+  },
+};
+</script>
+7. Trang Home.vue
+Hiển thị danh sách bài viết và form thêm bài viết.
+
+File src/views/Home.vue:
+
+vue
+Sao chép mã
+<template>
+  <div>
+    <BlogForm @add-post="addPost" />
+    <BlogList :posts="posts" />
+  </div>
+</template>
+
+<script>
+import BlogList from "../components/BlogList.vue";
+import BlogForm from "../components/BlogForm.vue";
+
+export default {
+  components: { BlogList, BlogForm },
+  data() {
+    return {
+      posts: [],
+    };
+  },
+  methods: {
+    addPost(post) {
+      this.posts.push(post);
+      this.savePosts();
+    },
+    savePosts() {
+      localStorage.setItem("posts", JSON.stringify(this.posts));
+    },
+    loadPosts() {
+      const savedPosts = localStorage.getItem("posts");
+      if (savedPosts) {
+        this.posts = JSON.parse(savedPosts);
+      }
+    },
+  },
+  created() {
+    this.loadPosts();
+  },
+};
+</script>
+8. Trang Post.vue
+Hiển thị chi tiết bài viết.
+
+File src/views/Post.vue:
+
+vue
+Sao chép mã
+<template>
+  <BlogDetail :post="post" />
+</template>
+
+<script>
+import BlogDetail from "../components/BlogDetail.vue";
+
+export default {
+  components: { BlogDetail },
+  data() {
+    return {
+      post: null,
+    };
+  },
+  created() {
+    const posts = JSON.parse(localStorage.getItem("posts")) || [];
+    const postId = Number(this.$route.params.id);
+    this.post = posts.find((post) => post.id === postId);
+  },
+};
+</script>
+9. File App.vue
+Tích hợp giao diện chính.
+
+File src/App.vue:
+
+vue
+Sao chép mã
+<template>
+  <div id="app">
+    <router-view />
+  </div>
+</template>
+
+<script>
+export default {
+  name: "App",
+};
+</script>
+10. Chạy ứng dụng
+Khởi động ứng dụng:
+
+bash
+Sao chép mã
+npm run serve
+Truy cập vào http://localhost:8080 để xem blog của bạn.
+
+
+```
+```
+Lịch học Vue.js (8 tiếng)
+Giờ 1: Làm quen với Vue.js và thiết lập môi trường
+Mục tiêu: Hiểu cơ bản về Vue.js và thiết lập môi trường làm việc.
+Nội dung học:
+Vue.js là gì? (Frontend Framework, SPA).
+Tạo ứng dụng Vue.js đầu tiên.
+Cấu trúc dự án Vue.js (src/, public/, App.vue, main.js).
+Thực hành:
+Cài Node.js và Vue CLI (nếu chưa có):
+bash
+Sao chép mã
+npm install -g @vue/cli
+vue create vue-project
+cd vue-project
+npm run serve
+Khám phá cấu trúc file App.vue và main.js.
+Từ khóa để tìm hiểu: Vue.js, Vue CLI, SPA, Single Page Application.
+Giờ 2: Data Binding và Directives
+Mục tiêu: Hiểu cách Vue.js quản lý dữ liệu và sử dụng directives.
+Nội dung học:
+Data Binding: {{ }}.
+Directives phổ biến: v-bind, v-model, v-if, v-for, v-on.
+Thực hành:
+Tạo giao diện nhập liệu:
+html
+Sao chép mã
+<template>
+  <div>
+    <h1>{{ message }}</h1>
+    <input v-model="message" />
+  </div>
+</template>
+<script>
+export default {
+  data() {
+    return {
+      message: "Hello Vue!",
+    };
+  },
+};
+</script>
+Thực hành v-for để hiển thị danh sách:
+html
+Sao chép mã
+<ul>
+  <li v-for="(item, index) in items" :key="index">{{ item }}</li>
+</ul>
+Từ khóa để tìm hiểu: v-bind, v-model, v-if, v-for.
+Giờ 3: Event Handling và Methods
+Mục tiêu: Quản lý sự kiện và xử lý logic trong Vue.js.
+Nội dung học:
+Event Handling (v-on hoặc @).
+Phương thức trong Vue (methods).
+Thực hành:
+Thêm nút bấm để thay đổi dữ liệu:
+html
+Sao chép mã
+<button @click="increment">Tăng</button>
+<p>Giá trị: {{ count }}</p>
+javascript
+Sao chép mã
+data() {
+  return { count: 0 };
+},
+methods: {
+  increment() {
+    this.count++;
+  },
+},
+Thêm một sự kiện khác như hover, keydown.
+Từ khóa để tìm hiểu: Event Handling, Methods, @click.
+Giờ 4: Components
+Mục tiêu: Tạo và sử dụng các component tái sử dụng.
+Nội dung học:
+Component là gì? Tại sao cần component?
+Cách tạo component.
+Truyền dữ liệu qua props và sử dụng emit để gửi sự kiện ngược lại.
+Thực hành:
+Tạo một component Card hiển thị thông tin sản phẩm:
+javascript
+Sao chép mã
+// Card.vue
+<template>
+  <div class="card">
+    <h3>{{ title }}</h3>
+    <p>{{ content }}</p>
+  </div>
+</template>
+<script>
+export default {
+  props: ["title", "content"],
+};
+</script>
+Sử dụng component trong App.vue:
+html
+Sao chép mã
+<Card title="Sản phẩm 1" content="Mô tả sản phẩm 1" />
+Từ khóa để tìm hiểu: Vue Components, Props.
+Giờ 5: State Management với Local Storage
+Mục tiêu: Lưu trữ dữ liệu cục bộ trong trình duyệt.
+Nội dung học:
+Lưu và đọc dữ liệu từ Local Storage.
+Cập nhật dữ liệu qua Vue.
+Thực hành:
+Tạo ứng dụng danh sách công việc (To-Do List):
+Người dùng có thể thêm/xóa công việc.
+Lưu danh sách công việc vào Local Storage.
+javascript
+Sao chép mã
+methods: {
+  saveTasks() {
+    localStorage.setItem("tasks", JSON.stringify(this.tasks));
+  },
+  loadTasks() {
+    const tasks = localStorage.getItem("tasks");
+    if (tasks) this.tasks = JSON.parse(tasks);
+  },
+},
+Từ khóa để tìm hiểu: Local Storage, Vue.js State Management.
+Giờ 6: Style và Animation
+Mục tiêu: Thêm CSS và hiệu ứng động vào ứng dụng.
+Nội dung học:
+Thêm style cục bộ trong Vue.
+Sử dụng transition để tạo hiệu ứng.
+Thực hành:
+Tạo hiệu ứng cho danh sách công việc:
+html
+Sao chép mã
+<transition name="fade">
+  <li v-for="(item, index) in items" :key="index">{{ item }}</li>
+</transition>
+css
+Sao chép mã
+.fade-enter-active, .fade-leave-active {
+  transition: opacity 0.5s;
+}
+.fade-enter, .fade-leave-to {
+  opacity: 0;
+}
+Từ khóa để tìm hiểu: Vue CSS, Vue Transition.
+Giờ 7: Vue Router (Tùy chọn không backend)
+Mục tiêu: Tạo ứng dụng nhiều trang chỉ với frontend.
+Nội dung học:
+Cài đặt Vue Router.
+Tạo routes đơn giản.
+Thực hành:
+Tạo hai trang: Trang chính và Trang chi tiết.
+javascript
+Sao chép mã
+const routes = [
+  { path: "/", component: Home },
+  { path: "/about", component: About },
+];
+Sử dụng <router-link> để chuyển đổi giữa các trang.
+Từ khóa để tìm hiểu: Vue Router, SPA Navigation.
+Giờ 8: Dự án nhỏ: To-Do List với Vue
+Mục tiêu: Áp dụng toàn bộ kiến thức để xây dựng ứng dụng nhỏ.
+Hoạt động:
+Xây dựng ứng dụng To-Do List:
+Thêm/xóa công việc.
+Hiển thị danh sách công việc.
+Lưu dữ liệu bằng Local Storage.
+Tích hợp hiệu ứng chuyển đổi khi thêm/xóa công việc.
+Triển khai ứng dụng lên Netlify hoặc Vercel (tùy chọn).
+Lưu ý
+Tài liệu tham khảo: Vue.js Documentation.
+Thực hành liên tục: Tự tạo thêm các ứng dụng nhỏ như đồng hồ, bộ đếm, hay blog frontend.
+Hãy bắt đầu và tận hưởng việc học Vue.js nhé! 🚀
+```
+```
 v-bind:
 
 Ràng buộc thuộc tính hoặc class động vào một giá trị từ dữ liệu hoặc biểu thức.
