@@ -1,4 +1,213 @@
 ```
+Cách tổ chức Mock API
+Để quản lý Mock API tốt hơn, bạn có thể chia các phần sau trong thư mục Domain:
+
+Repository Module:
+Chứa các hàm thực hiện CRUD (Create, Read, Update, Delete). Đây là nơi bạn đặt logic API giả lập.
+
+Handler (Middleware):
+Xử lý nghiệp vụ cho các yêu cầu như kiểm tra tính hợp lệ của dữ liệu, tạo mã lỗi nếu cần.
+
+Mock Data:
+Chứa dữ liệu tĩnh ban đầu. Dữ liệu này sẽ được dùng trong quá trình phát triển.
+
+Ví dụ cấu trúc thư mục
+plaintext
+Sao chép mã
+domain/
+├── repository/
+│   └── userRepository.js     # Chứa các hàm CRUD cho User
+├── handlers/
+│   └── userHandler.js         # Xử lý logic nghiệp vụ trước khi gọi repository
+├── mocks/
+│   └── mockUsers.js           # Dữ liệu giả lập ban đầu
+Triển khai cụ thể
+1. mockUsers.js (Dữ liệu ban đầu)
+javascript
+Sao chép mã
+export const mockUsers = [
+  { id: 1, name: "John Doe", email: "john.doe@example.com" },
+  { id: 2, name: "Jane Smith", email: "jane.smith@example.com" }
+];
+2. userRepository.js (Hàm CRUD)
+javascript
+Sao chép mã
+import { mockUsers } from "../mocks/mockUsers";
+
+// Hàm lấy danh sách user
+export const fetchUsers = () => {
+  return Promise.resolve(mockUsers);
+};
+
+// Hàm thêm mới user
+export const addUser = (newUser) => {
+  newUser.id = mockUsers.length + 1; // Tạo ID tự động
+  mockUsers.push(newUser);
+  return Promise.resolve(newUser);
+};
+
+// Hàm xóa user
+export const deleteUser = (id) => {
+  const index = mockUsers.findIndex((user) => user.id === id);
+  if (index !== -1) {
+    mockUsers.splice(index, 1);
+    return Promise.resolve({ message: "User deleted successfully" });
+  }
+  return Promise.reject(new Error("User not found"));
+};
+
+// Hàm cập nhật user
+export const updateUser = (id, updatedData) => {
+  const user = mockUsers.find((user) => user.id === id);
+  if (user) {
+    Object.assign(user, updatedData);
+    return Promise.resolve(user);
+  }
+  return Promise.reject(new Error("User not found"));
+};
+3. userHandler.js (Xử lý logic)
+Bạn có thể thêm các kiểm tra hợp lệ hoặc xử lý lỗi tại đây trước khi gọi userRepository.
+
+javascript
+Sao chép mã
+import { addUser, deleteUser, fetchUsers, updateUser } from "../repository/userRepository";
+
+// Xử lý lấy danh sách user
+export const handleFetchUsers = async () => {
+  return await fetchUsers();
+};
+
+// Xử lý thêm mới user
+export const handleAddUser = async (userData) => {
+  if (!userData.name || !userData.email) {
+    throw new Error("Name and Email are required");
+  }
+  return await addUser(userData);
+};
+
+// Xử lý xóa user
+export const handleDeleteUser = async (id) => {
+  if (!id) {
+    throw new Error("User ID is required");
+  }
+  return await deleteUser(id);
+};
+
+// Xử lý cập nhật user
+export const handleUpdateUser = async (id, updatedData) => {
+  if (!id || !updatedData) {
+    throw new Error("User ID and update data are required");
+  }
+  return await updateUser(id, updatedData);
+};
+Tích hợp với Frontend
+Nên đặt API gọi ở đâu?
+Nếu dùng trong nhiều nơi: Tạo một file composable/useUser.js trong thư mục composable để gọi các API từ userHandler.
+Nếu chỉ dùng trong một trang cụ thể: Gọi trực tiếp từ component.
+Composable/useUser.js
+javascript
+Sao chép mã
+import {
+  handleFetchUsers,
+  handleAddUser,
+  handleDeleteUser,
+  handleUpdateUser
+} from "@/domain/handlers/userHandler";
+
+export const useUser = () => {
+  const fetchUsers = async () => {
+    try {
+      return await handleFetchUsers();
+    } catch (error) {
+      console.error(error.message);
+    }
+  };
+
+  const addUser = async (userData) => {
+    try {
+      return await handleAddUser(userData);
+    } catch (error) {
+      console.error(error.message);
+    }
+  };
+
+  const deleteUser = async (id) => {
+    try {
+      return await handleDeleteUser(id);
+    } catch (error) {
+      console.error(error.message);
+    }
+  };
+
+  const updateUser = async (id, updatedData) => {
+    try {
+      return await handleUpdateUser(id, updatedData);
+    } catch (error) {
+      console.error(error.message);
+    }
+  };
+
+  return { fetchUsers, addUser, deleteUser, updateUser };
+};
+Trong Component (ví dụ: UserPage.vue)
+vue
+Sao chép mã
+<template>
+  <div>
+    <h1>Users</h1>
+    <ul>
+      <li v-for="user in users" :key="user.id">
+        {{ user.name }} ({{ user.email }})
+        <button @click="removeUser(user.id)">Delete</button>
+      </li>
+    </ul>
+    <form @submit.prevent="addNewUser">
+      <input v-model="newUser.name" placeholder="Name" required />
+      <input v-model="newUser.email" placeholder="Email" required />
+      <button type="submit">Add User</button>
+    </form>
+  </div>
+</template>
+
+<script>
+import { useUser } from "@/composable/useUser";
+
+export default {
+  data() {
+    return {
+      users: [],
+      newUser: { name: "", email: "" },
+    };
+  },
+  async created() {
+    const { fetchUsers } = useUser();
+    this.users = await fetchUsers();
+  },
+  methods: {
+    async addNewUser() {
+      const { addUser } = useUser();
+      const user = await addUser(this.newUser);
+      if (user) {
+        this.users.push(user);
+        this.newUser = { name: "", email: "" };
+      }
+    },
+    async removeUser(id) {
+      const { deleteUser } = useUser();
+      await deleteUser(id);
+      this.users = this.users.filter((user) => user.id !== id);
+    },
+  },
+};
+</script>
+Tóm tắt nên đặt ở đâu
+Logic xử lý API Mock (CRUD): Đặt trong repository.
+Kiểm tra dữ liệu và xử lý lỗi: Đặt trong handler.
+Gọi API từ frontend: Tạo file composable nếu dùng lại ở nhiều nơi.
+Quản lý giao diện: Xử lý logic hiển thị trong component hoặc page.
+Cấu trúc này giúp bạn dễ bảo trì và tái sử dụng code hiệu quả hơn. Nếu có điểm nào cần làm rõ, cứ hỏi thêm nhé! 😊
+```
+```
 Cập nhật BlogList.vue với tính năng xóa bài viết
 Cập nhật BlogList.vue để thêm nút xóa bài viết:
 
