@@ -1,4 +1,392 @@
 ```
+1. Cập nhật Mock API (userapimock)
+Thêm các hàm sau vào userapimock để xử lý thêm, xóa, sửa:
+
+typescript
+Sao chép mã
+// Thêm mới user
+async apiuseradd(newUser: { firstname: string; lastname: string; email: string }): Promise<{ message: string; user: any }> {
+  const newId = this.userdatamock.length > 0 ? this.userdatamock[this.userdatamock.length - 1].id + 1 : 1;
+  const user = { id: newId, ...newUser }; // Tạo user mới
+  this.userdatamock.push(user); // Thêm vào mock data
+
+  return {
+    message: "User added successfully",
+    user,
+  };
+}
+
+// Xóa user
+async apiuserdelete(userId: number): Promise<{ message: string }> {
+  const index = this.userdatamock.findIndex((user) => user.id === userId);
+  if (index === -1) {
+    throw new Error("User not found");
+  }
+  this.userdatamock.splice(index, 1); // Xóa user
+  return { message: "User deleted successfully" };
+}
+
+// Sửa user
+async apiuserupdate(userId: number, updatedData: { firstname?: string; lastname?: string; email?: string }): Promise<{ message: string; user: any }> {
+  const user = this.userdatamock.find((user) => user.id === userId);
+  if (!user) {
+    throw new Error("User not found");
+  }
+  Object.assign(user, updatedData); // Cập nhật user
+  return {
+    message: "User updated successfully",
+    user,
+  };
+}
+2. Cập nhật Repository (userrepository.ts)
+Thêm các hàm tương ứng vào userrepository để kết nối với Mock API:
+
+typescript
+Sao chép mã
+export class userrepository implements IUserReposity {
+  private fetches: IFetches;
+
+  constructor(fetches: IFetches) {
+    this.fetches = fetches;
+  }
+
+  // Thêm user mới
+  async add(newUser: { firstname: string; lastname: string; email: string }): Promise<{ message: string; user: any }> {
+    const result = await this.fetches.user.apiuseradd(newUser);
+    return result;
+  }
+
+  // Xóa user
+  async delete(userId: number): Promise<{ message: string }> {
+    const result = await this.fetches.user.apiuserdelete(userId);
+    return result;
+  }
+
+  // Sửa user
+  async update(userId: number, updatedData: { firstname?: string; lastname?: string; email?: string }): Promise<{ message: string; user: any }> {
+    const result = await this.fetches.user.apiuserupdate(userId, updatedData);
+    return result;
+  }
+}
+3. Sử dụng trong useController.ts
+Thêm các hàm để gọi repository và cập nhật giao diện:
+
+typescript
+Sao chép mã
+// Thêm user
+public addUser = async (newUser: { firstname: string; lastname: string; email: string }): Promise<void> => {
+  this.loading.value = true;
+  try {
+    const response = await this.$app.repository.userrepository.add(newUser);
+    console.log(response.message); // "User added successfully"
+    this.load(); // Reload danh sách user sau khi thêm
+  } catch (error) {
+    console.error("Error adding user:", error.message);
+  } finally {
+    this.loading.value = false;
+  }
+};
+
+// Xóa user
+public deleteUser = async (userId: number): Promise<void> => {
+  this.loading.value = true;
+  try {
+    const response = await this.$app.repository.userrepository.delete(userId);
+    console.log(response.message); // "User deleted successfully"
+    this.load(); // Reload danh sách user sau khi xóa
+  } catch (error) {
+    console.error("Error deleting user:", error.message);
+  } finally {
+    this.loading.value = false;
+  }
+};
+
+// Sửa user
+public updateUser = async (userId: number, updatedData: { firstname?: string; lastname?: string; email?: string }): Promise<void> => {
+  this.loading.value = true;
+  try {
+    const response = await this.$app.repository.userrepository.update(userId, updatedData);
+    console.log(response.message); // "User updated successfully"
+    this.load(); // Reload danh sách user sau khi sửa
+  } catch (error) {
+    console.error("Error updating user:", error.message);
+  } finally {
+    this.loading.value = false;
+  }
+};
+4. Cách sử dụng trong giao diện (component hoặc page)
+Ví dụ: Thêm người dùng mới
+typescript
+Sao chép mã
+await useController.addUser({
+  firstname: "Alice",
+  lastname: "Johnson",
+  email: "alice.johnson@example.com",
+});
+Ví dụ: Xóa người dùng
+typescript
+Sao chép mã
+await useController.deleteUser(2); // Xóa user với ID = 2
+Ví dụ: Sửa người dùng
+typescript
+Sao chép mã
+await useController.updateUser(1, {
+  firstname: "John Updated",
+  email: "john.updated@example.com",
+});
+Tóm tắt
+Mock API (userapimock): Xử lý dữ liệu giả lập với các hàm thêm, xóa, sửa.
+Repository (userrepository.ts): Giao tiếp với Mock API và trả về kết quả cho tầng controller.
+Controller (useController.ts): Gọi repository và xử lý logic liên quan đến giao diện.
+Với cấu trúc này, việc thêm, xóa, sửa dữ liệu người dùng sẽ được thực hiện xuyên suốt các tầng một cách rõ ràng và có tổ chức. Nếu bạn cần mở rộng thêm, hãy cho mình biết! 😊
+```
+```
+// Giả lập dữ liệu mock ban đầu
+this.userdatamock = [
+  { id: 1, name: "John Doe", email: "john.doe@example.com" },
+  { id: 2, name: "Jane Smith", email: "jane.smith@example.com" },
+  { id: 3, name: "Bob Johnson", email: "bob.johnson@example.com" },
+];
+
+// Hàm lấy danh sách người dùng
+async apiusergetmany(requestparameter: iapiusergetmanyrequest): Promise<iApiusergetmanyresponse> {
+  let users = this.userdatamock; // Dữ liệu từ mock
+  return {
+    count: users.length, // Tổng số người dùng
+    datas: users,        // Danh sách người dùng
+  };
+}
+
+// Hàm thêm mới người dùng
+async apiuseradd(newUser: { name: string; email: string }): Promise<{ message: string; user: any }> {
+  // Tạo ID tự động cho người dùng mới
+  const newId = this.userdatamock.length > 0 ? this.userdatamock[this.userdatamock.length - 1].id + 1 : 1;
+  const user = { id: newId, ...newUser }; // Tạo đối tượng user mới
+  
+  this.userdatamock.push(user); // Thêm vào mảng dữ liệu mock
+
+  return {
+    message: "User added successfully",
+    user,
+  };
+}
+
+// Hàm xóa người dùng
+async apiuserdelete(userId: number): Promise<{ message: string }> {
+  // Tìm index của user cần xóa
+  const index = this.userdatamock.findIndex((user) => user.id === userId);
+
+  if (index === -1) {
+    throw new Error("User not found"); // Nếu không tìm thấy
+  }
+
+  this.userdatamock.splice(index, 1); // Xóa user khỏi mảng
+  return { message: "User deleted successfully" };
+}
+
+// Hàm sửa thông tin người dùng
+async apiuserupdate(userId: number, updatedData: { name?: string; email?: string }): Promise<{ message: string; user: any }> {
+  // Tìm user cần cập nhật
+  const user = this.userdatamock.find((user) => user.id === userId);
+
+  if (!user) {
+    throw new Error("User not found"); // Nếu không tìm thấy
+  }
+
+  // Cập nhật thông tin
+  Object.assign(user, updatedData);
+
+  return {
+    message: "User updated successfully",
+    user,
+  };
+}
+
+```
+```
+// --- Mock API ---
+// File: userApiMock.js
+
+let mockUserData = [
+  { id: 1, firstname: 'John', lastname: 'Doe', email: 'john.doe@example.com' },
+  { id: 2, firstname: 'Jane', lastname: 'Smith', email: 'jane.smith@example.com' },
+  { id: 3, firstname: 'Alice', lastname: 'Johnson', email: 'alice.johnson@example.com' },
+];
+
+export default {
+  async apiUserGetMany(searchCondition) {
+    // Mock search functionality
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        const filteredData = mockUserData.filter((user) => {
+          return (
+            (!searchCondition.id || user.id === +searchCondition.id) &&
+            (!searchCondition.firstname || user.firstname.includes(searchCondition.firstname)) &&
+            (!searchCondition.lastname || user.lastname.includes(searchCondition.lastname)) &&
+            (!searchCondition.email || user.email.includes(searchCondition.email))
+          );
+        });
+        resolve({ count: filteredData.length, datas: filteredData });
+      }, 500);
+    });
+  },
+
+  async apiUserAdd(newUser) {
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        const newId = mockUserData.length ? mockUserData[mockUserData.length - 1].id + 1 : 1;
+        const userToAdd = { id: newId, ...newUser };
+        mockUserData.push(userToAdd);
+        resolve(userToAdd);
+      }, 500);
+    });
+  },
+
+  async apiUserUpdate(userId, updatedUser) {
+    return new Promise((resolve, reject) => {
+      setTimeout(() => {
+        const index = mockUserData.findIndex((user) => user.id === userId);
+        if (index !== -1) {
+          mockUserData[index] = { ...mockUserData[index], ...updatedUser };
+          resolve(mockUserData[index]);
+        } else {
+          reject(new Error('User not found'));
+        }
+      }, 500);
+    });
+  },
+
+  async apiUserDelete(userId) {
+    return new Promise((resolve, reject) => {
+      setTimeout(() => {
+        const index = mockUserData.findIndex((user) => user.id === userId);
+        if (index !== -1) {
+          mockUserData.splice(index, 1);
+          resolve({ success: true });
+        } else {
+          reject(new Error('User not found'));
+        }
+      }, 500);
+    });
+  },
+};
+
+// --- User Repository ---
+// File: userRepository.js
+import userApiMock from '@/mock/userApiMock';
+
+export default {
+  async getMany(searchCondition) {
+    return userApiMock.apiUserGetMany(searchCondition);
+  },
+
+  async add(newUser) {
+    return userApiMock.apiUserAdd(newUser);
+  },
+
+  async update(userId, updatedUser) {
+    return userApiMock.apiUserUpdate(userId, updatedUser);
+  },
+
+  async delete(userId) {
+    return userApiMock.apiUserDelete(userId);
+  },
+};
+
+```
+
+```
+// --- Mock API ---
+// File: userApiMock.js
+
+let mockUserData = [
+  { id: 1, firstname: 'John', lastname: 'Doe', email: 'john.doe@example.com' },
+  { id: 2, firstname: 'Jane', lastname: 'Smith', email: 'jane.smith@example.com' },
+  { id: 3, firstname: 'Alice', lastname: 'Johnson', email: 'alice.johnson@example.com' },
+];
+
+export default {
+  async apiUserGetMany(searchCondition) {
+    // Mock search functionality
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        const filteredData = mockUserData.filter((user) => {
+          return (
+            (!searchCondition.id || user.id === +searchCondition.id) &&
+            (!searchCondition.firstname || user.firstname.includes(searchCondition.firstname)) &&
+            (!searchCondition.lastname || user.lastname.includes(searchCondition.lastname)) &&
+            (!searchCondition.email || user.email.includes(searchCondition.email))
+          );
+        });
+        resolve({ count: filteredData.length, datas: filteredData });
+      }, 500);
+    });
+  },
+
+  async apiUserAdd(newUser) {
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        const newId = mockUserData.length ? mockUserData[mockUserData.length - 1].id + 1 : 1;
+        const userToAdd = { id: newId, ...newUser };
+        mockUserData.push(userToAdd);
+        resolve(userToAdd);
+      }, 500);
+    });
+  },
+
+  async apiUserUpdate(userId, updatedUser) {
+    return new Promise((resolve, reject) => {
+      setTimeout(() => {
+        const index = mockUserData.findIndex((user) => user.id === userId);
+        if (index !== -1) {
+          mockUserData[index] = { ...mockUserData[index], ...updatedUser };
+          resolve(mockUserData[index]);
+        } else {
+          reject(new Error('User not found'));
+        }
+      }, 500);
+    });
+  },
+
+  async apiUserDelete(userId) {
+    return new Promise((resolve, reject) => {
+      setTimeout(() => {
+        const index = mockUserData.findIndex((user) => user.id === userId);
+        if (index !== -1) {
+          mockUserData.splice(index, 1);
+          resolve({ success: true });
+        } else {
+          reject(new Error('User not found'));
+        }
+      }, 500);
+    });
+  },
+};
+
+// --- User Repository ---
+// File: userRepository.js
+import userApiMock from '@/mock/userApiMock';
+
+export default {
+  async getMany(searchCondition) {
+    return userApiMock.apiUserGetMany(searchCondition);
+  },
+
+  async add(newUser) {
+    return userApiMock.apiUserAdd(newUser);
+  },
+
+  async update(userId, updatedUser) {
+    return userApiMock.apiUserUpdate(userId, updatedUser);
+  },
+
+  async delete(userId) {
+    return userApiMock.apiUserDelete(userId);
+  },
+};
+
+```
+```
 Cách tổ chức Mock API
 Để quản lý Mock API tốt hơn, bạn có thể chia các phần sau trong thư mục Domain:
 
