@@ -1,4 +1,890 @@
 ```
+Mỗi cột được định nghĩa thông qua một mảng các đối tượng columns. Mỗi đối tượng trong columns sẽ bao gồm thông tin về tiêu đề cột (header), khóa dữ liệu (key), và các tùy chọn khác nếu cần.
+
+Cấu trúc dữ liệu động
+ts
+Sao chép mã
+export interface Column {
+    key: string;
+    label: string;
+    width?: string;
+    align?: 'start' | 'center' | 'end';
+}
+
+export interface TableProps {
+    columns: Column[];
+    data: Record<string, any>[];
+    loading: boolean;
+}
+2. Component Table Động
+vue
+Sao chép mã
+<script setup lang="ts">
+import { defineProps } from 'vue';
+
+const props = defineProps<TableProps>();
+
+const onRowClick = (row: Record<string, any>) => {
+    console.log('Row clicked:', row);
+    // Xử lý hành động khi người dùng click vào một hàng
+};
+</script>
+
+<template>
+    <v-card variant="outlined" class="rounded-8">
+        <v-card-text>
+            <v-data-table
+                :headers="props.columns"
+                :items="props.data"
+                :loading="props.loading"
+                item-value="id"
+                class="elevation-1"
+                hide-default-footer
+                dense
+            >
+                <template v-slot:top>
+                    <div class="d-flex justify-end">
+                        <v-btn color="primary" @click="$emit('create-item')">
+                            Add New
+                        </v-btn>
+                    </div>
+                </template>
+
+                <template v-slot:body="{ props: { items } }">
+                    <tbody>
+                        <tr v-for="(item, index) in items" :key="index" @click="onRowClick(item)">
+                            <td v-for="column in props.columns" :key="column.key" :style="{ textAlign: column.align || 'start' }">
+                                {{ item[column.key] }}
+                            </td>
+                        </tr>
+                    </tbody>
+                </template>
+            </v-data-table>
+        </v-card-text>
+    </v-card>
+</template>
+3. Sử dụng bảng động
+Tại nơi bạn muốn sử dụng bảng, chỉ cần truyền danh sách columns và data.
+
+vue
+Sao chép mã
+<script setup lang="ts">
+import DynamicTable from '@/components/DynamicTable.vue';
+
+const columns = [
+    { key: 'id', label: 'ID', width: '10%' },
+    { key: 'name', label: 'Name', width: '30%' },
+    { key: 'price', label: 'Price', width: '20%', align: 'end' },
+    { key: 'type', label: 'Type', width: '20%' },
+    { key: 'action', label: 'Action', width: '20%' },
+];
+
+const data = ref([
+    { id: '1', name: 'Product 1', price: '$100', type: 'Electronics' },
+    { id: '2', name: 'Product 2', price: '$200', type: 'Furniture' },
+]);
+
+const loading = ref(false);
+
+const onCreateItem = () => {
+    console.log('Add new item clicked');
+};
+
+const onRowClicked = (row: Record<string, any>) => {
+    console.log('Row clicked:', row);
+};
+</script>
+
+<template>
+    <DynamicTable
+        :columns="columns"
+        :data="data"
+        :loading="loading"
+        @create-item="onCreateItem"
+        @row-clicked="onRowClicked"
+    />
+</template>
+4. Hỗ trợ các cột hành động
+Nếu cần thêm các hành động vào từng dòng (ví dụ: nút Edit hoặc Delete), bạn có thể tùy chỉnh trong bảng:
+
+Thêm Cột Hành Động
+vue
+Sao chép mã
+<template v-slot:body="{ props: { items } }">
+    <tbody>
+        <tr v-for="(item, index) in items" :key="index" @click="onRowClick(item)">
+            <td v-for="column in props.columns" :key="column.key" :style="{ textAlign: column.align || 'start' }">
+                <template v-if="column.key === 'action'">
+                    <v-btn icon color="primary" @click.stop="$emit('edit-item', item)">Edit</v-btn>
+                    <v-btn icon color="error" @click.stop="$emit('delete-item', item)">Delete</v-btn>
+                </template>
+                <template v-else>
+                    {{ item[column.key] }}
+                </template>
+            </td>
+        </tr>
+    </tbody>
+</template>
+```
+```
+1. Dynamic Field Handling
+Thay vì định nghĩa các thuộc tính như id, name, price, hay type cứng nhắc, hãy chuyển sang sử dụng một cấu trúc linh hoạt, ví dụ như một mảng các đối tượng fields. Mỗi đối tượng trong mảng này sẽ mô tả một field cụ thể.
+
+Cấu trúc động cho Controller
+ts
+Sao chép mã
+export interface Condition {
+    [key: string]: string | number | null | undefined;
+}
+
+export interface Field {
+    key: string;
+    label: string;
+    placeholder?: string;
+}
+
+export interface Props {
+    loading: boolean;
+    condition: Condition;
+    fields: Field[];
+}
+
+export class Controller {
+    public $app;
+    public props;
+    public condition: Ref<Condition>;
+    public fields: Field[];
+    public templateRefs: Ref<Record<string, unknown>>;
+
+    constructor(app: IApp, props: Props) {
+        this.$app = app;
+        this.props = props;
+        this.fields = props.fields;
+        this.condition = ref<Condition>({ ...this.props.condition });
+        this.templateRefs = ref({});
+    }
+
+    public getFieldValue = (key: string): string | number | null | undefined => {
+        return this.condition.value[key];
+    };
+
+    public setFieldValue = (key: string, value: string | number | null) => {
+        this.condition.value[key] = value;
+    };
+}
+
+export const useController = (app: IApp, props: Props) => new Controller(app, props);
+Tạo Form Động
+vue
+Sao chép mã
+<script setup lang="ts">
+import { inject } from 'vue';
+import MTextField from '@/components/molecules/MTextField/index.vue';
+import { useController as ctrl, type Props, type Field } from './useController';
+
+import { Key } from '@/consts';
+const $app = inject(Key);
+if (!$app) throw new Error('No app provided');
+
+const emits = defineEmits<{
+    (e: 'search', condition: Record<string, string | number | null | undefined>): void;
+    (e: 'reset'): void;
+}>();
+
+const props = withDefaults(defineProps<Props>(), {
+    loading: true,
+    fields: [] as Field[],
+});
+
+const { condition, fields, setFieldValue, getFieldValue } = ctrl($app, props);
+
+const onSearch = () => {
+    emits('search', { ...condition.value });
+};
+
+const onReset = () => {
+    Object.keys(condition.value).forEach((key) => {
+        condition.value[key] = null;
+    });
+    emits('reset');
+};
+</script>
+
+<template>
+    <v-card variant="outlined" class="rounded-8">
+        <v-card-text>
+            <v-row dense v-for="field in fields" :key="field.key">
+                <v-col cols="12" md="6">
+                    <MTextField
+                        v-model="condition[field.key]"
+                        :label="field.label"
+                        :placeholder="field.placeholder || field.label"
+                        :hide-detail="true"
+                    />
+                </v-col>
+            </v-row>
+            <v-spacer />
+            <v-row dense>
+                <v-col cols="6">
+                    <v-btn
+                        rounded="xl"
+                        class="w-100 gradient-border"
+                        variant="flat"
+                        :loading="props.loading"
+                        @click="onSearch"
+                    >
+                        Search
+                    </v-btn>
+                </v-col>
+                <v-col cols="6">
+                    <v-btn rounded="xl" class="w-100 gradient-border" variant="flat" @click="onReset">
+                        Reset
+                    </v-btn>
+                </v-col>
+            </v-row>
+        </v-card-text>
+    </v-card>
+</template>
+Gửi Field Dữ Liệu
+Khi sử dụng, chỉ cần truyền các trường cần thiết qua props:
+
+vue
+Sao chép mã
+<script setup lang="ts">
+import SearchForm from '@/components/SearchForm.vue';
+
+const fields = [
+    { key: 'id', label: 'ID', placeholder: 'Enter ID' },
+    { key: 'name', label: 'Name', placeholder: 'Enter Name' },
+    { key: 'price', label: 'Price', placeholder: 'Enter Price' },
+    { key: 'type', label: 'Type', placeholder: 'Enter Type' },
+];
+
+const loading = ref(false);
+
+const onSearch = (condition) => {
+    console.log('Search with:', condition);
+};
+
+const onReset = () => {
+    console.log('Reset');
+};
+</script>
+
+<template>
+    <SearchForm :fields="fields" :loading="loading" @search="onSearch" @reset="onReset" />
+</template>
+```
+---------------------------------------------------------------
+```
+Bước 1: Chỉnh sửa index.vue để hiển thị bảng
+index.vue:
+
+vue
+<script setup lang="ts">
+import { inject, onMounted } from 'vue';
+import { useController as ctrl, type Props } from './useController';
+import DataTable from '@/components/DataTable.vue';  // Thành phần bảng động
+
+import { Key } from '@/consts';
+const $app = inject(Key);
+if (!$app) throw new Error('No app provided');
+
+const props = withDefaults(defineProps<Props>(), {
+  loading: true,
+  headers: [],
+});
+
+const emits = defineEmits<{
+  (e: 'rowClicked', id?: string): void;
+  (e: 'createRowClicked'): void;
+}>();
+
+const { loading, data, headers, load } = ctrl($app, props);
+
+const onDetail = (id: string | undefined) => {
+  emits('rowClicked', id);
+};
+
+const oncreateClicked = () => {
+  emits('createRowClicked');
+};
+
+onMounted(async () => {
+  try {
+    await load();
+  } catch (error: unknown) {
+    console.error(error);
+  }
+});
+</script>
+
+<template>
+  <h1 class="title">List Items</h1>
+  <DataTable :loading="loading" :headers="headers" :data="data" @row-clicked="onDetail" />
+  <div class="d-flex justify-end">
+    <v-btn rounded="x1" class="mt-5 gradient-border customerBtn" :loading="loading" @click="oncreateClicked">Create Item</v-btn>
+  </div>
+  <v-pagination v-model="condition.page" :length="pageCount || 1" density="compact" @update-page="" />
+</template>
+Bước 2: Tạo thành phần DataTable.vueđể hiển thị bảng
+DataTable.vue:
+
+vue
+<template>
+  <v-card variant="outlined" class="rounded-8">
+    <v-card-text>
+      <v-data-table
+        :headers="headers"
+        :items="data"
+        :loading="loading"
+        @click:row="onRowClick"
+      />
+    </v-card-text>
+  </v-card>
+</template>
+
+<script setup lang="ts">
+import { defineProps, defineEmits } from 'vue';
+
+const props = defineProps<{
+  loading: boolean;
+  headers: Array<{ text: string; value: string; sortable?: boolean }>;
+  data: Array<Record<string, any>>;
+}>();
+
+const emits = defineEmits<{
+  (e: 'row-clicked', id: string): void;
+}>();
+
+const onRowClick = (item: Record<string, any>) => {
+  emits('row-clicked', item.id);
+};
+</script>
+Bước 3: Chỉnh sửa useController.ts để quản lý dữ liệu bảng
+useController.ts:
+
+ts
+import { type IApp } from "@/applications/application";
+
+export interface Condition {
+  page: number;
+  [key: string]: any;
+}
+
+export interface Props {
+  loading: boolean;
+  headers: Array<{ text: string; value: string; sortable?: boolean }>;
+}
+
+export class Controller {
+  public $app;
+  public loading;
+  public data;
+  public headers;
+  public condition;
+  public pageCount;
+  private readonly itemsPerPage = 5;
+
+  constructor(app: IApp, props: Props) {
+    this.$app = app;
+    this.loading = ref(false);
+    this.data = ref<Array<Record<string, any>>>([]);
+    this.headers = ref(props.headers);
+    this.condition = ref<Condition>({ page: 1 });
+    this.pageCount = ref(0);
+  }
+
+  public load = async (): Promise<void> => {
+    try {
+      this.loading.value = true;
+      await delay(500);
+      const resp = await this.$app.repository.itemRepository.getMany(this.condition.value);
+      if (resp.datas) {
+        this.pageCount.value = Math.ceil(resp.count / this.itemsPerPage);
+        this.data.value = resp.datas;
+      }
+    } finally {
+      this.loading.value = false;
+    }
+  };
+
+  public reload = async (): Promise<void> => {
+    await this.load();
+  };
+}
+
+export const useController = (app: IApp, props: Props) => {
+  const controller = new Controller(app, props);
+  return controller;
+};
+Bước 4: Sử dụng thành phần động với dữ liệu bảng
+pages/product.vue:
+
+vue
+<template>
+  <title>Products</title>
+  <DataTable
+    :headers="productHeaders"
+    :data="data"
+    :loading="loading"
+    @row-clicked="onDetail"
+  />
+  <div class="d-flex justify-end">
+    <v-btn rounded="x1" class="mt-5 gradient-border customerBtn" :loading="loading" @click="oncreateClicked">Create Product</v-btn>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref, onMounted } from 'vue';
+import { useController } from './useController';
+import DataTable from '@/components/DataTable.vue';
+import { Key } from '@/consts';
+const $app = inject(Key);
+if (!$app) throw new Error('No app provided');
+
+const productHeaders = [
+  { text: 'ID', value: 'id' },
+  { text: 'Name', value: 'name' },
+  { text: 'Price', value: 'price' },
+  { text: 'Type', value: 'type' },
+];
+
+const { loading, data, setFields, load, headers } = useController($app, {
+  loading: ref(false),
+  headers: productHeaders,
+});
+
+setFields(productHeaders);
+
+const onDetail = (id: string) => {
+  console.log('Row clicked:', id);
+  // Thực hiện chi tiết với ID
+};
+
+const oncreateClicked = () => {
+  console.log('Create product clicked');
+  // Thực hiện tạo mới sản phẩm
+};
+
+onMounted(async () => {
+  try {
+    await load();
+  } catch (error: unknown) {
+    console.error(error);
+  }
+});
+</script>
+```
+```
+Bước 1: Chỉnh sửa index.vue
+Thay đổi index.vue để nhận và hiển thị các trường động:
+
+index.vue:
+
+vue
+<script setup lang="ts">
+import { inject } from 'vue';
+import MTextField from '@/components/molecules/MTextField/index.vue';
+import { useController as ctrl, type Props } from './useController';
+
+import { Key } from '@/consts';
+const $app = inject(Key);
+if (!$app) throw new Error('No app provided');
+
+const emits = defineEmits<{
+  (e: 'search', values: Record<string, string | null>): void;
+  (e: 'reset'): void;
+}>();
+
+const props = withDefaults(defineProps<Props>(), {
+  loading: true,
+  fields: []
+});
+
+const { condition, templateRefID, setFields } = ctrl($app, props);
+
+const onSearch = async () => {
+  emits('search', { ...condition.value });
+};
+
+const onReset = () => {
+  Object.keys(condition.value).forEach(key => {
+    condition.value[key] = '';
+  });
+  emits('reset');
+};
+
+setFields(props.fields);
+</script>
+
+<template>
+  <v-card variant="outlined" class="rounded-8">
+    <v-card-text>
+      <v-row dense v-for="(field, index) in props.fields" :key="index">
+        <v-col :cols="field.cols || 12" :md="field.md || 5">
+          <MTextField
+            v-model="condition[field.name]"
+            :label="field.label"
+            :placeholder="field.placeholder"
+            :hide-detail="true"
+            :auto-focus="field.autoFocus || false"
+          />
+        </v-col>
+      </v-row>
+      <v-spacer/>
+      <v-row dense>
+        <v-col cols="12" md="2">
+          <v-row dense>
+            <v-col cols="6" md="3">
+              <v-btn rounded="xl" class="w-100 customerBtn gradient-border" variant="flat" :loading="props.loading" @click="onSearch">
+                <span class="d-md-none">Search</span>
+                <v-icon class="d-none d-md-block">mdi-magnify</v-icon>
+              </v-btn>
+            </v-col>
+            <v-col cols="6" md="4">
+              <v-btn rounded="xl" class="w-100 customerBtn gradient-border" variant="flat" @click="onReset">
+                Reset
+              </v-btn>
+            </v-col>
+          </v-row>
+        </v-col>
+      </v-row>
+    </v-card-text>
+  </v-card>
+</template>
+Bước 2: Chỉnh sửa useController.ts
+Thay đổi useController.ts để quản lý các điều kiện động và các trường đầu vào:
+
+useController.ts:
+
+ts
+import { type IApp } from "@/applications/application";
+
+export interface Condition {
+  [key: string]: string | null;
+}
+
+export interface Props {
+  loading: boolean;
+  fields: Field[];
+}
+
+export interface Field {
+  name: string;
+  label: string;
+  placeholder: string;
+  cols?: number;
+  md?: number;
+  autoFocus?: boolean;
+}
+
+export class Controller {
+  public $app;
+  public props;
+  public condition: Ref<Condition>;
+  public templateRefID: Ref<unknown>;
+
+  constructor(app: IApp, props: Props) {
+    this.$app = app;
+    this.props = props;
+    this.condition = ref<Condition>({});
+    this.templateRefID = ref(null);
+  }
+
+  public setFields(fields: Field[]) {
+    fields.forEach(field => {
+      this.condition.value[field.name] = '';
+    });
+  }
+}
+
+export const useController = (app: IApp, props: Props) => {
+  const controller = new Controller(app, props);
+  return controller;
+};
+Bước 3: Sử dụng thành phần động
+pages/product.vue:
+
+vue
+<template>
+  <title>Products</title>
+  <dynamic-form
+    :fields="[
+      { name: 'id', label: 'ID', placeholder: 'Input ID', autoFocus: true },
+      { name: 'name', label: 'Name', placeholder: 'Input Name' },
+      { name: 'price', label: 'Price', placeholder: 'Input Price' },
+      { name: 'type', label: 'Type', placeholder: 'Input Type' }
+    ]"
+    :loading="loading"
+    @search="onSearch"
+    @reset="onReset"
+  />
+</template>
+
+<script setup lang="ts">
+import { ref } from 'vue';
+import { useController } from './useController';
+import DynamicForm from '@/components/DynamicForm.vue';
+import { Key } from '@/consts';
+const $app = inject(Key);
+if (!$app) throw new Error('No app provided');
+
+const { loading, setFields } = useController($app, {
+  loading: ref(false),
+  fields: [
+    { name: 'id', label: 'ID', placeholder: 'Input ID', autoFocus: true },
+    { name: 'name', label: 'Name', placeholder: 'Input Name' },
+    { name: 'price', label: 'Price', placeholder: 'Input Price' },
+    { name: 'type', label: 'Type', placeholder: 'Input Type' }
+  ]
+});
+
+const onSearch = async (values: Record<string, string | null>) => {
+  console.log('Search values:', values);
+  // Thực hiện tìm kiếm với các giá trị đầu vào
+};
+
+const onReset = () => {
+  console.log('Form reset');
+};
+
+</script>
+```
+```
+Bước 1: Chỉnh sửa index.vue
+Thay đổi index.vue để có thể nhận và hiển thị các trường động:
+
+index.vue:
+
+vue
+<script setup lang="ts">
+import { inject, onMounted } from 'vue';
+import DynamicForm from '@/components/DynamicForm.vue';
+import { useController as ctrl } from './useController';
+import { Key } from '@/consts';
+
+const $app = inject(Key);
+if (!$app) throw new Error('No app provided');
+
+const emits = defineEmits<{
+  (e: 'rowClicked', id?: string): void;
+  (e: 'createProductClicked'): void;
+}>();
+
+const { loading, pageCount, itemList, condition, load, fields } = ctrl($app);
+
+const onDetail = (id: string | undefined) => {
+  emits('rowClicked', id);
+};
+
+const onSearch = async (searchCondition: Record<string, string | null>) => {
+  try {
+    Object.assign(condition.value, searchCondition);
+    condition.value.page = 1;
+    await load();
+  } catch (error: unknown) {
+    console.error(error);
+  }
+};
+
+const onReset = () => {
+  Object.keys(condition.value).forEach(key => {
+    condition.value[key] = undefined;
+  });
+  condition.value.page = 1;
+  load();
+};
+
+const oncreateClicked = () => {
+  emits('createProductClicked');
+};
+
+const onSort = async (key: string, order: string) => {
+  condition.value.key = key;
+  condition.value.order = order;
+  await load();
+};
+
+const onPageClicked = async () => {
+  await load();
+};
+
+onMounted(async () => {
+  try {
+    await load();
+  } catch (error: unknown) {
+    console.error(error);
+  }
+});
+</script>
+
+<template>
+  <h1 class="title">List Items</h1>
+  <DynamicForm :loading="loading" :fields="fields" @search="onSearch" @reset="onReset" />
+  <div class="d-flex justify-end">
+    <v-btn rounded="x1" class="mt-5 gradient-border customerBtn" :loading="loading" @click="oncreateClicked">Create Item</v-btn>
+  </div>
+  <ProductSearchResult :item-list="itemList" :loading="loading" :height="350" @on-detail-clicked="onDetail" />
+  <v-pagination v-model="condition.page" :length="pageCount || 1" density="compact" @update-page="" />
+</template>
+Bước 2: Chỉnh sửa useController.ts
+Thay đổi useController.ts để quản lý các điều kiện động và các trường đầu vào:
+
+useController.ts:
+
+ts
+import { type IApp } from '@/applications/application';
+
+export interface Condition {
+  [key: string]: string | number | undefined;
+}
+
+export interface ItemData {
+  [key: string]: string | number;
+}
+
+export interface Field {
+  name: string;
+  label: string;
+  placeholder: string;
+  cols?: number;
+  md?: number;
+  autoFocus?: boolean;
+}
+
+export class Controller {
+  public $app;
+  public loading;
+  public condition;
+  public itemList;
+  public pageCount;
+  public fields;
+  private readonly itemsPerPage = 5;
+
+  constructor(app: IApp) {
+    this.$app = app;
+    this.loading = ref(false);
+    this.condition = ref<Condition>({});
+    this.itemList = ref<ItemData[]>([]);
+    this.pageCount = ref(0);
+    this.fields = ref<Field[]>([]);
+  }
+
+  public setFields(fields: Field[]) {
+    this.fields.value = fields;
+    fields.forEach(field => {
+      this.condition.value[field.name] = '';
+    });
+  }
+
+  public load = async (): Promise<void> => {
+    try {
+      this.loading.value = true;
+      await delay(500);
+      const resp = await this.$app.repository.itemRepository.getMany(this.condition.value);
+      if (resp.datas) {
+        this.pageCount.value = Math.ceil(resp.count / this.itemsPerPage);
+        this.itemList.value = resp.datas;
+      }
+    } finally {
+      this.loading.value = false;
+    }
+  };
+
+  public reload = async (): Promise<void> => {
+    await this.load();
+  };
+}
+
+export const useController = (app: IApp) => {
+  const controller = new Controller(app);
+  return controller;
+};
+Bước 3: Sử dụng DynamicForm và thiết lập các trường đầu vào
+Bạn có thể sử dụng thành phần DynamicForm để thiết lập các trường đầu vào và quản lý chúng một cách động.
+
+pages/product.vue:
+
+vue
+<template>
+  <title>Products</title>
+  <DynamicForm
+    :fields="productFields"
+    :loading="loading"
+    @search="onSearch"
+    @reset="onReset"
+  />
+</template>
+
+<script setup lang="ts">
+import { ref, onMounted } from 'vue';
+import { useController } from './useController';
+import DynamicForm from '@/components/DynamicForm.vue';
+import { Key } from '@/consts';
+const $app = inject(Key);
+if (!$app) throw new Error('No app provided');
+
+const { loading, setFields, load, fields } = useController($app);
+
+const productFields = [
+  { name: 'id', label: 'ID', placeholder: 'Input ID', autoFocus: true },
+  { name: 'name', label: 'Name', placeholder: 'Input Name' },
+  { name: 'price', label: 'Price', placeholder: 'Input Price' },
+  { name: 'type', label: 'Type', placeholder: 'Input Type' },
+];
+
+setFields(productFields);
+
+onMounted(async () => {
+  try {
+    await load();
+  } catch (error: unknown) {
+    console.error(error);
+  }
+});
+</script>
+pages/user.vue:
+
+vue
+<template>
+  <title>Users</title>
+  <DynamicForm
+    :fields="userFields"
+    :loading="loading"
+    @search="onSearch"
+    @reset="onReset"
+  />
+</template>
+
+<script setup lang="ts">
+import { ref, onMounted } from 'vue';
+import { useController } from './useController';
+import DynamicForm from '@/components/DynamicForm.vue';
+import { Key } from '@/consts';
+const $app = inject(Key);
+if (!$app) throw new Error('No app provided');
+
+const { loading, setFields, load, fields } = useController($app);
+
+const userFields = [
+  { name: 'username', label: 'Username', placeholder: 'Input Username', autoFocus: true },
+  { name: 'address', label: 'Address', placeholder: 'Input Address' },
+  { name: 'email', label: 'Email', placeholder: 'Input Email' },
+];
+
+setFields(userFields);
+
+onMounted(async () => {
+  try {
+    await load();
+  } catch (error: unknown) {
+    console.error(error);
+  }
+});
+</script>
+```
+```
 1. Cập nhật Mock API (userapimock)
 Thêm các hàm sau vào userapimock để xử lý thêm, xóa, sửa:
 
