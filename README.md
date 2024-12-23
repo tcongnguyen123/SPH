@@ -1,4 +1,302 @@
 ```
+Cách triển khai
+Script Setup
+vue
+Sao chép mã
+<script setup lang="ts">
+import { computed } from 'vue';
+
+const props = defineProps<{
+    fields: Array<{ key: string; label: string; placeholder?: string }>;
+    condition: Record<string, any>;
+    loading: boolean;
+}>();
+
+const emit = defineEmits<{
+    (e: 'search'): void;
+    (e: 'reset'): void;
+}>();
+
+const onSearch = () => {
+    emit('search');
+};
+
+const onReset = () => {
+    emit('reset');
+};
+
+// Chia fields thành các hàng
+const groupedFields = computed(() => {
+    const rows = [];
+    const fieldCount = props.fields.length;
+
+    if (fieldCount === 3) {
+        rows.push([props.fields[0]]);
+        rows.push(props.fields.slice(1, 3));
+    } else if (fieldCount === 4) {
+        rows.push(props.fields.slice(0, 2));
+        rows.push(props.fields.slice(2, 4));
+    } else {
+        // Mặc định, mỗi hàng 2 field
+        for (let i = 0; i < fieldCount; i += 2) {
+            rows.push(props.fields.slice(i, i + 2));
+        }
+    }
+
+    return rows;
+});
+</script>
+Template
+vue
+Sao chép mã
+<template>
+    <v-card variant="outlined" class="rounded-8">
+        <v-card-text>
+            <!-- Render các hàng -->
+            <v-row dense v-for="(row, rowIndex) in groupedFields" :key="rowIndex">
+                <!-- Render các field trong mỗi hàng -->
+                <v-col
+                    v-for="field in row"
+                    :key="field.key"
+                    :cols="12 / row.length"
+                >
+                    <MTextField
+                        v-model="condition[field.key]"
+                        :label="field.label"
+                        :placeholder="field.placeholder || field.label"
+                        :hide-detail="true"
+                    />
+                </v-col>
+            </v-row>
+
+            <v-spacer />
+
+            <!-- Nút hành động -->
+            <v-row dense>
+                <v-col cols="6">
+                    <v-btn
+                        rounded="xl"
+                        class="w-100 gradient-border"
+                        variant="flat"
+                        :loading="props.loading"
+                        @click="onSearch"
+                    >
+                        Search
+                    </v-btn>
+                </v-col>
+                <v-col cols="6">
+                    <v-btn rounded="xl" class="w-100 gradient-border" variant="flat" @click="onReset">
+                        Reset
+                    </v-btn>
+                </v-col>
+            </v-row>
+        </v-card-text>
+    </v-card>
+</template>
+Hoạt động
+Logic sắp xếp:
+
+groupedFields sử dụng computed để chia các trường thành các hàng dựa trên số lượng.
+Với 3 fields: [[field1], [field2, field3]].
+Với 4 fields: [[field1, field2], [field3, field4]].
+Hiển thị trong hàng:
+
+Sử dụng v-row và v-col để điều chỉnh số cột (12 chia đều cho số field trong hàng).
+Tương thích:
+
+Dễ dàng mở rộng cho số lượng fields khác nhau.
+Ví dụ dữ liệu
+vue
+Sao chép mã
+<script setup lang="ts">
+const fields = [
+    { key: 'name', label: 'Name' },
+    { key: 'age', label: 'Age' },
+    { key: 'email', label: 'Email' },
+    { key: 'phone', label: 'Phone' },
+];
+
+const condition = reactive({});
+</script>
+
+<template>
+    <DynamicForm :fields="fields" :condition="condition" :loading="false" />
+</template>
+```
+```
+1. Chuyển cấu trúc dữ liệu sang động
+Bạn cần định nghĩa cấu trúc dữ liệu động, ví dụ một danh sách fields để mô tả các trường (input):
+
+ts
+Sao chép mã
+interface DynamicField {
+    key: string; // Tên của trường, sẽ khớp với key trong dữ liệu
+    label: string; // Tên hiển thị của trường
+    type: 'string' | 'number' | 'boolean'; // Loại input
+    value?: any; // Giá trị hiện tại của trường (được gán khi chỉnh sửa)
+}
+
+interface DynamicData {
+    [key: string]: any; // Dữ liệu động, mỗi key là một trường
+}
+2. Tạo form động
+Tạo một form động với danh sách các trường (fields) để hiển thị các input.
+
+Component Form (EditForm.vue):
+vue
+Sao chép mã
+<script setup lang="ts">
+import { ref } from 'vue';
+
+interface DynamicField {
+    key: string;
+    label: string;
+    type: 'string' | 'number' | 'boolean';
+    value?: any;
+}
+
+const props = defineProps<{
+    fields: DynamicField[];
+}>();
+
+const updatedData = ref(
+    props.fields.reduce((acc, field) => {
+        acc[field.key] = field.value || '';
+        return acc;
+    }, {} as Record<string, any>)
+);
+
+const emit = defineEmits<{
+    (e: 'save', data: Record<string, any>): void;
+    (e: 'cancel'): void;
+}>();
+
+const onSave = () => {
+    emit('save', updatedData.value);
+};
+
+const onCancel = () => {
+    emit('cancel');
+};
+</script>
+
+<template>
+    <div>
+        <form @submit.prevent="onSave">
+            <div v-for="field in fields" :key="field.key">
+                <label>{{ field.label }}</label>
+                <input
+                    v-if="field.type === 'string'"
+                    type="text"
+                    v-model="updatedData[field.key]"
+                />
+                <input
+                    v-else-if="field.type === 'number'"
+                    type="number"
+                    v-model="updatedData[field.key]"
+                />
+                <input
+                    v-else-if="field.type === 'boolean'"
+                    type="checkbox"
+                    v-model="updatedData[field.key]"
+                />
+            </div>
+            <button type="submit">Save</button>
+            <button type="button" @click="onCancel">Cancel</button>
+        </form>
+    </div>
+</template>
+3. Hiển thị danh sách và xử lý nút "Edit"
+Component (DynamicResult.vue):
+vue
+Sao chép mã
+<script setup lang="ts">
+import { ref } from 'vue';
+import EditForm from './EditForm.vue';
+
+const props = defineProps<{
+    data: Array<Record<string, any>>;
+    fields: Array<{ key: string; label: string; type: 'string' | 'number' | 'boolean' }>;
+}>();
+
+const selectedRow = ref<Record<string, any> | null>(null);
+const isEditing = ref(false);
+
+const onEdit = (row: Record<string, any>) => {
+    selectedRow.value = row;
+    isEditing.value = true;
+};
+
+const onSave = (updatedData: Record<string, any>) => {
+    // Update the data list
+    const index = props.data.findIndex(item => item.id === updatedData.id);
+    if (index !== -1) {
+        props.data[index] = updatedData;
+    }
+    isEditing.value = false;
+};
+
+const onCancel = () => {
+    isEditing.value = false;
+};
+</script>
+
+<template>
+    <div>
+        <table>
+            <thead>
+                <tr>
+                    <th v-for="field in fields" :key="field.key">{{ field.label }}</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr v-for="row in data" :key="row.id">
+                    <td v-for="field in fields" :key="field.key">{{ row[field.key] }}</td>
+                    <td>
+                        <button @click="onEdit(row)">Edit</button>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+
+        <EditForm
+            v-if="isEditing"
+            :fields="fields.map(field => ({
+                ...field,
+                value: selectedRow ? selectedRow[field.key] : '',
+            }))"
+            @save="onSave"
+            @cancel="onCancel"
+        />
+    </div>
+</template>
+4. Cách sử dụng trong thực tế
+vue
+Sao chép mã
+<script setup lang="ts">
+import DynamicResult from './DynamicResult.vue';
+
+const fields = [
+    { key: 'id', label: 'ID', type: 'string' },
+    { key: 'name', label: 'Name', type: 'string' },
+    { key: 'price', label: 'Price', type: 'number' },
+    { key: 'type', label: 'Type', type: 'string' },
+];
+
+const data = [
+    { id: '1', name: 'Product 1', price: 100, type: 'Electronics' },
+    { id: '2', name: 'Product 2', price: 200, type: 'Furniture' },
+];
+</script>
+
+<template>
+    <DynamicResult :fields="fields" :data="data" />
+</template>
+
+```
+------day 2 -----
+```
 Mỗi cột được định nghĩa thông qua một mảng các đối tượng columns. Mỗi đối tượng trong columns sẽ bao gồm thông tin về tiêu đề cột (header), khóa dữ liệu (key), và các tùy chọn khác nếu cần.
 
 Cấu trúc dữ liệu động
