@@ -1,4 +1,308 @@
 ```
+1. Truyền Dữ Liệu Được Chọn Từ Màn Hình Tìm Kiếm
+Giả sử màn hình tìm kiếm có danh sách kết quả và khi bạn chọn một dòng, dữ liệu của dòng đó sẽ được truyền vào form chỉnh sửa.
+
+Màn hình tìm kiếm (SearchScreen.vue):
+vue
+Sao chép mã
+<script setup lang="ts">
+import { ref } from 'vue';
+import DynamicEditForm from '@/components/DynamicEditForm.vue';
+
+const searchResults = ref([
+  { id: '1', lastName: 'Nguyen', firstName: 'Van A', email: 'a@example.com', address: 'Hanoi' },
+  { id: '2', lastName: 'Tran', firstName: 'Van B', email: 'b@example.com', address: 'HCMC' },
+]);
+
+const selectedRow = ref(null);
+
+const selectRow = (row: any) => {
+  selectedRow.value = { ...row }; // Clone để tránh thay đổi dữ liệu gốc
+};
+
+const fields = [
+  { name: 'lastName', label: 'Last Name', placeholder: 'Input Last Name', validation: yup.string().required('Last Name is required') },
+  { name: 'firstName', label: 'First Name', placeholder: 'Input First Name', validation: yup.string().required('First Name is required') },
+  { name: 'email', label: 'Email', placeholder: 'Input Email', validation: yup.string().email('Invalid email').required('Email is required') },
+  { name: 'address', label: 'Address', placeholder: 'Input Address', validation: yup.string().required('Address is required') },
+];
+
+const onSubmit = (data: Record<string, string>) => {
+  console.log('Updated Data:', data);
+  // Call API to save data
+};
+
+const onCancel = () => {
+  selectedRow.value = null; // Reset selection
+};
+</script>
+
+<template>
+  <div>
+    <h2>Search Results</h2>
+    <v-table :items="searchResults" @click:row="selectRow" />
+
+    <DynamicEditForm
+      v-if="selectedRow"
+      :fields="fields"
+      :initialValues="selectedRow"
+      @submit="onSubmit"
+      @cancel="onCancel"
+    />
+  </div>
+</template>
+2. Hiển Thị Dữ Liệu Đã Chọn Trong DynamicEditForm
+Trong form động, dữ liệu dòng đã chọn từ SearchScreen sẽ được truyền qua initialValues. Bạn cần đảm bảo:
+
+Props initialValues được đồng bộ với reactive state.
+Giá trị trong v-model của mỗi trường form sử dụng dữ liệu từ initialValues.
+Form động (DynamicEditForm.vue):
+vue
+Sao chép mã
+<script setup lang="ts">
+import { computed, ref, watch } from 'vue';
+import { useField, useForm } from 'vee-validate';
+import * as yup from 'yup';
+import MTextField from '@/components/molecules/MTextField/index.vue';
+
+interface Props {
+  fields: {
+    name: string;
+    label: string;
+    placeholder: string;
+    validation: yup.StringSchema;
+  }[];
+  initialValues: Record<string, string>;
+}
+
+const props = defineProps<Props>();
+const emits = defineEmits<{
+  (e: 'submit', data: Record<string, string>): void;
+  (e: 'cancel'): void;
+}>();
+
+// Sync initialValues with form values
+const values = ref({ ...props.initialValues });
+
+watch(
+  () => props.initialValues,
+  (newValues) => {
+    values.value = { ...newValues }; // Update form values when props change
+  },
+  { immediate: true }
+);
+
+// Vee-validate form setup
+const { handleSubmit, errors } = useForm({
+  validationSchema: yup.object(
+    Object.fromEntries(
+      props.fields.map((field) => [field.name, field.validation])
+    )
+  ),
+  initialValues: values.value,
+});
+
+// Handlers
+const onSubmit = handleSubmit((formData) => {
+  emits('submit', formData);
+});
+
+const onCancel = () => {
+  emits('cancel');
+};
+</script>
+
+<template>
+  <div>
+    <v-row v-for="(field, index) in fields" :key="field.name">
+      <v-col cols="12" md="6">
+        <MTextField
+          v-model="values[field.name]"
+          :label="field.label"
+          :placeholder="field.placeholder"
+          :error-messages="errors[field.name]"
+        />
+      </v-col>
+    </v-row>
+    <v-row>
+      <v-btn @click="onSubmit">Submit</v-btn>
+      <v-btn @click="onCancel">Cancel</v-btn>
+    </v-row>
+  </div>
+</template>
+3. Liên Kết Với API (Nếu Cần)
+Khi một dòng được chọn, bạn có thể gọi API để lấy thông tin chi tiết hơn:
+
+ts
+Sao chép mã
+const fetchRowDetails = async (id: string) => {
+  try {
+    const response = await $app.$api.get(`/api/v1/rows/${id}`);
+    selectedRow.value = response.data; // Update selectedRow with detailed data
+  } catch (error) {
+    console.error('Failed to fetch row details:', error);
+  }
+};
+Bạn có thể gọi fetchRowDetails trong hàm selectRow.
+
+Kết Quả
+Khi bạn nhấp vào một dòng trên màn hình tìm kiếm:
+
+Dữ liệu dòng sẽ được truyền vào DynamicEditForm.
+Các trường trong form động sẽ hiển thị giá trị của dòng đã chọn.
+Khi chỉnh sửa xong và nhấn "Submit", dữ liệu đã chỉnh sửa sẽ được gửi lên thông qua sự kiện submit.
+```
+```
+1. Tách Form Thành Component Động
+Hãy tạo một DynamicEditForm.vue như sau:
+
+vue
+Sao chép mã
+<script setup lang="ts">
+import { inject, onMounted, ref } from 'vue';
+import { useField, useForm } from 'vee-validate';
+import * as yup from 'yup';
+import { Key } from '@/consts';
+import MTextField from '@/components/molecules/MTextField/index.vue';
+
+const $app = inject(Key);
+if (!$app) throw new Error('No app provided');
+
+// Define Props
+interface Props {
+  fields: {
+    name: string;
+    label: string;
+    placeholder: string;
+    validation: yup.StringSchema;
+  }[];
+  initialValues: Record<string, string>;
+}
+
+const props = defineProps<Props>();
+const emits = defineEmits<{
+  (e: 'submit', data: Record<string, string>): void;
+  (e: 'cancel'): void;
+}>();
+
+// Vee-validate form setup
+const { handleSubmit, errors, validate } = useForm({
+  validationSchema: yup.object(
+    Object.fromEntries(
+      props.fields.map((field) => [field.name, field.validation])
+    )
+  ),
+  initialValues: props.initialValues,
+});
+
+// Bind fields
+const fieldRefs = ref<Array<InstanceType<typeof MTextField> | null>>([]);
+
+onMounted(() => {
+  // Focus the first field
+  if (fieldRefs.value.length > 0 && fieldRefs.value[0]) {
+    fieldRefs.value[0]?.focus();
+  }
+});
+
+// Handlers
+const onSubmit = handleSubmit((values) => {
+  emits('submit', values);
+});
+
+const onCancel = () => {
+  emits('cancel');
+};
+</script>
+
+<template>
+  <div>
+    <v-row v-for="(field, index) in fields" :key="field.name">
+      <v-col cols="12" md="6">
+        <MTextField
+          :ref="(el) => (fieldRefs[index] = el)"
+          v-model="values[field.name]"
+          :label="field.label"
+          :placeholder="field.placeholder"
+          :error-messages="errors[field.name]"
+        />
+      </v-col>
+    </v-row>
+    <v-row>
+      <v-btn :loading="loading" @click="onSubmit">Submit</v-btn>
+      <v-btn @click="onCancel">Cancel</v-btn>
+    </v-row>
+  </div>
+</template>
+2. Sử Dụng Form Động
+Trong các file Vue khác, bạn có thể sử dụng DynamicEditForm và truyền các field và validation rules như sau:
+
+vue
+Sao chép mã
+<script setup lang="ts">
+import DynamicEditForm from '@/components/DynamicEditForm.vue';
+import * as yup from 'yup';
+
+const fields = [
+  { name: 'lastName', label: 'Last Name', placeholder: 'Input Last Name', validation: yup.string().required('Last Name is required') },
+  { name: 'firstName', label: 'First Name', placeholder: 'Input First Name', validation: yup.string().required('First Name is required') },
+  { name: 'email', label: 'Email', placeholder: 'Input Email', validation: yup.string().email('Invalid email').required('Email is required') },
+  { name: 'address', label: 'Address', placeholder: 'Input Address', validation: yup.string().required('Address is required') },
+];
+
+const initialValues = {
+  lastName: '',
+  firstName: '',
+  email: '',
+  address: '',
+};
+
+const onSubmit = (data: Record<string, string>) => {
+  console.log('Submitted Data:', data);
+};
+
+const onCancel = () => {
+  console.log('Form canceled');
+};
+</script>
+
+<template>
+  <DynamicEditForm
+    :fields="fields"
+    :initialValues="initialValues"
+    @submit="onSubmit"
+    @cancel="onCancel"
+  />
+</template>
+3. Kết Hợp Tái Sử Dụng Với API
+Trong DynamicEditForm, bạn có thể thêm loading và sử dụng phương thức API như sau:
+
+Load data: Fetch dữ liệu ban đầu từ API và truyền vào initialValues.
+
+Submit data: Gửi dữ liệu được submit về API.
+
+ts
+Sao chép mã
+const loadData = async () => {
+  try {
+    loading.value = true;
+    const response = await $app.$api.get(`/api/v1/edit/${props.id}`);
+    initialValues.value = response.data;
+  } catch (error) {
+    console.error('Failed to load data', error);
+  } finally {
+    loading.value = false;
+  }
+};
+Lợi Ích
+Dynamic and Reusable: Bạn có thể tái sử dụng form cho nhiều màn hình khác nhau chỉ cần thay đổi fields và initialValues.
+
+Validation Integrated: Sử dụng vee-validate để quản lý validation dễ dàng.
+
+Simplified Logic: Controller xử lý logic form tổng quát mà không bị gắn chặt vào UI
+```
+------ new day -------
+```
 Cách triển khai
 Script Setup
 vue
