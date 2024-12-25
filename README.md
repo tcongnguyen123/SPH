@@ -1,4 +1,248 @@
 ```
+import { useForm, useField } from 'vee-validate';
+import * as yup from 'yup';
+
+const fields = [
+  { name: 'name', label: 'Name', type: 'text', placeholder: 'Enter Name', value: '' },
+  { name: 'price', label: 'Price', type: 'number', placeholder: 'Enter Price', value: '' },
+  { name: 'type', label: 'Type', type: 'text', placeholder: 'Enter Type', value: '' },
+];
+
+const validationSchema = yup.object(
+  fields.reduce((acc, field) => {
+    acc[field.name] = yup.string().required(`${field.label} is required`);
+    return acc;
+  }, {} as Record<string, any>)
+);
+
+const { handleSubmit, errors, validate } = useForm({
+  validationSchema,
+});
+
+fields.forEach((field) => {
+  useField(field.name, validationSchema.fields[field.name]);
+});
+
+```
+```
+<template>
+  <form @submit="handleSubmit(onSubmit)">
+    <div v-for="(field, index) in fields" :key="index">
+      <label :for="field.name">{{ field.label }}</label>
+      <input
+        v-model="field.value"
+        :type="field.type || 'text'"
+        :name="field.name"
+        :placeholder="field.placeholder"
+        @blur="handleBlur(field)"
+      />
+      <span v-if="field.errorMessage">{{ field.errorMessage }}</span>
+    </div>
+
+    <button type="submit">Submit</button>
+  </form>
+</template>
+
+<script setup lang="ts">
+import { ref } from 'vue';
+import { useForm, useField } from 'vee-validate';
+import * as yup from 'yup';
+
+interface Field {
+  name: string;
+  label: string;
+  type: string;
+  placeholder: string;
+  value: string;
+  errorMessage: string;
+}
+
+const fields = ref<Field[]>([
+  { name: 'name', label: 'Name', type: 'text', placeholder: 'Enter Name', value: '', errorMessage: '' },
+  { name: 'price', label: 'Price', type: 'number', placeholder: 'Enter Price', value: '', errorMessage: '' },
+  { name: 'type', label: 'Type', type: 'text', placeholder: 'Enter Type', value: '', errorMessage: '' },
+]);
+
+// Dynamically creating a validation schema based on fields
+const validationSchema = yup.object(
+  fields.value.reduce((acc, field) => {
+    acc[field.name] = yup.string().required(`${field.label} is required`);
+    return acc;
+  }, {} as Record<string, any>)
+);
+
+const { handleSubmit, errors, validate } = useForm({
+  validationSchema,
+});
+
+// Dynamically create useField hooks for each field
+const { reset } = useForm();
+fields.value.forEach((field) => {
+  useField(field.name, validationSchema.fields[field.name]);
+});
+
+const onSubmit = (values: Record<string, string>) => {
+  console.log('Form submitted:', values);
+};
+
+const handleBlur = (field: Field) => {
+  // Manually handle validation for each field on blur
+  validate(field.name).then((valid) => {
+    if (!valid) {
+      field.errorMessage = errors.value[field.name]?.[0];
+    } else {
+      field.errorMessage = '';
+    }
+  });
+};
+</script>
+
+```
+```
+<template>
+  <form @submit="handleSubmit(onSubmit)">
+    <div v-for="field in dynamicFields" :key="field.name">
+      <label :for="field.name">{{ field.label }}</label>
+      <input v-model="formData[field.name]" :id="field.name" :name="field.name" :type="field.type" />
+      <span v-if="errors[field.name]">{{ errors[field.name] }}</span>
+    </div>
+    <button type="submit">Submit</button>
+  </form>
+</template>
+
+<script setup lang="ts">
+import { ref } from 'vue';
+import { useForm } from 'vee-validate';
+import * as yup from 'yup';
+
+// Dynamic fields definition with validation rules
+const dynamicFields = [
+  { name: 'name', label: 'Name', type: 'string', validation: yup.string().required('Name is required') },
+  { name: 'type', label: 'Type', type: 'string', validation: yup.string().required('Type is required') },
+  { name: 'price', label: 'Price', type: 'number', validation: yup.number().required('Price is required').positive('Price must be a positive number') },
+];
+
+// Dynamically build the validation schema from dynamicFields
+const formSchema = dynamicFields.reduce((schema, field) => {
+  schema[field.name] = field.validation;  // Use the validation rules provided in the dynamicFields
+  return schema;
+}, {});
+
+const { handleSubmit, errors } = useForm({
+  validationSchema: yup.object(formSchema),
+});
+
+// Initialize form data with empty strings
+const formData = ref(
+  dynamicFields.reduce((data, field) => {
+    data[field.name] = '';  // Initialize each field with empty string
+    return data;
+  }, {} as Record<string, string>)
+);
+
+const onSubmit = (values: Record<string, string>) => {
+  console.log('Form submitted with values:', values);
+};
+</script>
+
+```
+```
+<template>
+  <form @submit.prevent="onSubmit">
+    <div v-for="field in dynamicFields" :key="field.name">
+      <label :for="field.name">{{ field.label }}</label>
+      <input v-model="formData[field.name]" :id="field.name" :name="field.name" :type="field.type" />
+      <span v-if="errors[field.name]">{{ errors[field.name] }}</span>
+    </div>
+    <button type="submit">Submit</button>
+  </form>
+</template>
+
+<script setup lang="ts">
+import { ref } from 'vue';
+import { useForm } from 'vee-validate';
+import * as yup from 'yup';
+
+// Dynamic fields definition with validation rules
+const dynamicFields = [
+  { name: 'name', label: 'Name', type: 'string', validation: yup.string().required('Name is required') },
+  { name: 'type', label: 'Type', type: 'string', validation: yup.string().required('Type is required') },
+  { name: 'price', label: 'Price', type: 'number', validation: yup.number().required('Price is required').positive('Price must be a positive number') },
+];
+
+// Dynamically build the validation schema from dynamicFields
+const formSchema = dynamicFields.reduce((schema, field) => {
+  schema[field.name] = field.validation;
+  return schema;
+}, {});
+
+const { validate, errors } = useForm({
+  validationSchema: yup.object(formSchema),
+});
+
+// Initialize form data with empty strings
+const formData = ref(
+  dynamicFields.reduce((data, field) => {
+    data[field.name] = '';
+    return data;
+  }, {} as Record<string, string>)
+);
+
+const onSubmit = async () => {
+  const isValid = await validate();
+
+  if (isValid) {
+    console.log('Form is valid, proceeding with submission:', formData.value);
+  } else {
+    console.log('Form has errors:', errors.value);
+  }
+};
+</script>
+
+```
+```
+import { useForm } from 'vee-validate';
+import * as yup from 'yup';
+
+const dynamicFields = [
+  { name: 'name', label: 'Name', type: 'string', validation: yup.string().required('Name is required') },
+  { name: 'type', label: 'Type', type: 'string', validation: yup.string().required('Type is required') },
+  { name: 'price', label: 'Price', type: 'number', validation: yup.number().required('Price is required').positive('Price must be a positive number') },
+];
+
+// Dynamically build the validation schema from dynamicFields
+const formSchema = dynamicFields.reduce((schema, field) => {
+  schema[field.name] = field.validation;  // Use the validation rules provided in the dynamicFields
+  return schema;
+}, {});
+
+const { validate, errors } = useForm({
+  validationSchema: yup.object(formSchema),
+});
+
+const formData = ref(
+  dynamicFields.reduce((data, field) => {
+    data[field.name] = '';  // Initialize each field with empty string
+    return data;
+  }, {} as Record<string, string>)
+);
+
+const onSubmit = async () => {
+  // Validate form before submitting
+  const isValid = await validate();
+
+  if (isValid) {
+    // Handle valid form submission
+    console.log('Form is valid, proceeding with submission:', formData.value);
+  } else {
+    // Handle form errors
+    console.log('Form has errors:', errors.value);
+  }
+};
+
+```
+--- hello ---
+```
 1. Truyền Dữ Liệu Được Chọn Từ Màn Hình Tìm Kiếm
 Giả sử màn hình tìm kiếm có danh sách kết quả và khi bạn chọn một dòng, dữ liệu của dòng đó sẽ được truyền vào form chỉnh sửa.
 
