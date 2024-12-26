@@ -1,4 +1,499 @@
 ```
+const FormController = createFormController([
+    { name: 'lastName', validation: yup.string().required('Họ không được bỏ trống') },
+    { name: 'firstName', validation: yup.string().required('Tên không được bỏ trống') }
+]);
+
+const controller = new FormController(app);
+```
+```
+
+import { IApp } from "~/applications/application";
+import { useField, useForm } from "vee-validate";
+import * as yup from "yup";
+import type { MTextFieldInterface } from "~/components/molecules/MTextField/useController";
+
+export const createFormController = (fields: Array<{
+    name: string;
+    validation: yup.Schema;
+}>) => {
+    return class DynamicFormController {
+        public $app;
+        public formValid;
+        public loading = ref(false);
+        public fields: Record<string, Ref<string>> = {};
+        public templateRefArray: Ref<unknown>[] = [];
+
+        constructor(app: IApp) {
+            this.$app = app;
+            
+            const schema = fields.reduce((acc, field) => ({
+                ...acc,
+                [field.name]: field.validation
+            }), {});
+
+            this.formValid = useForm({
+                validationSchema: yup.object(schema)
+            });
+
+            fields.forEach(field => {
+                this.fields[field.name] = useField<string>(
+                    field.name, 
+                    undefined,
+                    { syncVModel: ref("") }
+                ).value;
+            });
+        }
+
+        public async regist(onSubmit: (values: Record<string, string>) => void) {
+            this.loading.value = true;
+            await this.formValid.validate();
+
+            const errorField = this.templateRefArray.find(ref => 
+                (ref.value as MTextFieldInterface).isError()
+            );
+            if (errorField) {
+                (errorField.value as MTextFieldInterface).focus();
+            }
+
+            await this.formValid.handleSubmit(onSubmit)();
+            this.loading.value = false;
+        }
+
+        public get errors() {
+            return this.formValid.errors;
+        }
+    }
+}
+```
+```
+const fields = [
+    {
+        name: 'lastName',
+        label: 'Họ',
+        placeholder: 'Nhập họ',
+        validation: yup.string().required('Họ không được bỏ trống')
+    },
+    {
+        name: 'firstName',
+        label: 'Tên',
+        placeholder: 'Nhập tên', 
+        validation: yup.string().required('Tên không được bỏ trống')
+    }
+];
+
+const controller = new Controller(app, { 
+    fields,
+    onSubmit: (values) => {
+        console.log(values);
+    }
+});
+```
+```
+import { IApp } from "~/applications/application";
+import { useField, useForm } from "vee-validate";
+import * as yup from "yup";
+import type { MTextFieldInterface } from "~/components/molecules/MTextField/useController";
+
+interface FieldConfig {
+    name: string;
+    label: string;
+    placeholder: string;
+    validation: yup.Schema;
+}
+
+export interface Props {
+    fields: FieldConfig[];
+    onSubmit?: (values: Record<string, string>) => void;
+}
+
+export class Controller {
+    public $app;
+    public props;
+    public formValid;
+    public loading;
+    public fieldValues: Record<string, Ref<string>>;
+    public templateRefArray: Ref<unknown>[];
+
+    constructor(app: IApp, props: Props) {
+        this.$app = app;
+        this.props = props;
+        this.loading = ref(false);
+        this.fieldValues = {};
+        this.templateRefArray = [];
+
+        // Build validation schema dynamically
+        const validationSchema = yup.object(
+            props.fields.reduce((acc, field) => ({
+                ...acc,
+                [field.name]: field.validation
+            }), {})
+        );
+
+        this.formValid = useForm({
+            validationSchema
+        });
+
+        // Initialize fields dynamically
+        props.fields.forEach(field => {
+            this.fieldValues[field.name] = useField<string>(
+                field.name,
+                undefined,
+                { syncVModel: ref("") }
+            ).value;
+        });
+    }
+
+    public load = async (): Promise<void> => {
+        try {
+            this.loading.value = true;
+        } finally {
+            this.loading.value = false;
+        }
+    };
+
+    public entryAutoField = async (): Promise<void> => {
+        this.loading.value = true;
+        this.loading.value = false;
+    };
+
+    public cancel = async (): Promise<void> => {
+        this.loading.value = true;
+        this.loading.value = false;
+    };
+
+    public regist = async (callback?: () => void): Promise<void> => {
+        this.loading.value = true;
+        const { validate } = this.formValid;
+        await validate();
+
+        for (const templateRef of this.templateRefArray) {
+            const mTextFieldRef = templateRef.value as MTextFieldInterface;
+            if (mTextFieldRef.isError() == true) {
+                mTextFieldRef.focus();
+                break;
+            }
+        }
+
+        await this.formValid.handleSubmit(async (values) => {
+            if (this.props.onSubmit) {
+                this.props.onSubmit(values);
+            }
+            if (callback) {
+                callback();
+            }
+        })();
+        this.loading.value = false;
+    };
+
+    public get errors() {
+        return this.formValid.errors;
+    }
+}
+```
+```
+<template>
+  <YourComponent
+    :fields="[
+      { name: 'lastName', label: 'Họ', placeholder: 'Nhập họ', validation: yup.string().required('Họ không được bỏ trống') },
+      { name: 'firstName', label: 'Tên', placeholder: 'Nhập tên', validation: yup.string().required('Tên không được bỏ trống') },
+      { name: 'email', label: 'Email', placeholder: 'Nhập email', validation: yup.string().email('Email không hợp lệ').required('Email không được bỏ trống') },
+    ]"
+    @regist="handleRegist"
+  />
+</template>
+
+<script setup lang="ts">
+const handleRegist = (fields) => {
+  console.log('Dữ liệu đã đăng ký:', fields);
+};
+</script>
+
+```
+```
+<script setup lang="ts">
+import { ref, defineProps, defineEmits } from 'vue';
+import { Controller } from '~/path/to/controller';
+
+const props = defineProps({
+  fields: Array,  // Dữ liệu trường động được truyền vào từ component cha
+});
+
+const emit = defineEmits(['regist']);
+
+// Khởi tạo Controller với props fields truyền vào
+const controller = new Controller(app, { fields: props.fields });
+
+// Hàm xử lý khi đăng ký (register)
+const onRegist = async () => {
+  await controller.regist(() => {
+    // Emit sự kiện khi gọi register thành công
+    emit('regist', controller.fields);
+  });
+};
+</script>
+
+<template>
+  <div>
+    <!-- Duyệt qua fields và tạo các trường dữ liệu -->
+    <v-form @submit="onRegist">
+      <div v-for="(field, index) in props.fields" :key="index">
+        <v-text-field
+          v-model="controller.fields[field.name]"
+          :label="field.label"
+          :placeholder="field.placeholder"
+          :error-messages="controller.errors[field.name]"
+        />
+      </div>
+
+      <!-- Submit Button -->
+      <v-btn type="submit">Register</v-btn>
+    </v-form>
+  </div>
+</template>
+
+```
+```
+import { IApp } from "~/applications/application";
+import { useField, useForm } from "vee-validate";
+import * as yup from "yup";
+import { Ref, ref } from 'vue';
+
+export interface FieldConfig {
+    name: string;
+    label: string;
+    placeholder: string;
+    validation?: any; // Validation có thể được truyền vào tùy theo nhu cầu (yup schema)
+}
+
+export interface Props {
+    fields: FieldConfig[];  // Mảng các field, mỗi field có thể có validation riêng
+}
+
+export class Controller {
+    public $app;
+    public props: Props;
+    public formValid;
+    public loading;
+    public fields: Record<string, Ref<string>>;
+    public templateRefArray: Ref<unknown>[];
+
+    constructor(app: IApp, props: Props) {
+        this.$app = app;
+        this.props = props;
+        this.loading = ref(false);
+
+        // Tạo validation schema động từ props.fields
+        const validationSchema: Record<string, any> = {};
+
+        this.props.fields.forEach(field => {
+            // Nếu validation được cung cấp cho từng field thì dùng validation đó
+            validationSchema[field.name] = field.validation || yup.string().required(`${field.label} không được bỏ trống`);
+        });
+
+        // Khởi tạo formValid với validation schema động
+        this.formValid = useForm({
+            validationSchema: yup.object(validationSchema),
+        });
+
+        // Khởi tạo các trường động với useField
+        this.fields = {};
+        this.props.fields.forEach(field => {
+            this.fields[field.name] = useField(field.name).value;
+        });
+
+        this.templateRefArray = [];
+    }
+
+    public load = async (): Promise<void> => {
+        try {
+            this.loading.value = true;
+            // const res = await this.$app.$api.get(`/api/v1/conditions/${this.props.id}`);
+            // this.condition.value = res.data;
+        } finally {
+            this.loading.value = false;
+        }
+    };
+
+    public entryAutoField = async (): Promise<void> => {
+        this.loading.value = true;
+        this.loading.value = false;
+    };
+
+    public cancel = async (): Promise<void> => {
+        this.loading.value = true;
+        this.loading.value = false;
+    };
+
+    public regist = async (callback?: () => void): Promise<void> => {
+        this.loading.value = true;
+
+        const { validate } = this.formValid;
+        await validate();
+
+        for (const templateRef of this.templateRefArray) {
+            const mTextFieldRef = templateRef.value as MTextFieldInterface;
+            if (mTextFieldRef.isError() === true) {
+                mTextFieldRef.focus();
+                break;
+            }
+        }
+
+        await this.formValid.handleSubmit(async () => {
+            if (callback) {
+                callback();
+            }
+        })();
+
+        this.loading.value = false;
+    };
+
+    public get errors() {
+        return this.formValid.errors;
+    }
+}
+
+```
+```
+<script setup lang="ts">
+import { ref, defineProps, defineEmits } from 'vue';
+import { Controller } from '~/path/to/controller';
+
+const props = defineProps({
+  fields: Array,  // Dữ liệu trường động được truyền vào từ component cha
+});
+
+const emit = defineEmits(['regist']);
+
+// Khởi tạo Controller với props fields truyền vào
+const controller = new Controller(app, { fields: props.fields });
+
+// Hàm xử lý khi đăng ký (register)
+const onRegist = async () => {
+  await controller.regist(() => {
+    // Emit sự kiện khi gọi register thành công
+    emit('regist', controller.fields);
+  });
+};
+</script>
+
+<template>
+  <div>
+    <!-- Duyệt qua fields và tạo các trường dữ liệu -->
+    <v-form @submit="onRegist">
+      <div v-for="(field, index) in props.fields" :key="index">
+        <v-text-field
+          v-model="controller.fields[field.name]"
+          :label="field.label"
+          :placeholder="field.placeholder"
+          :error-messages="controller.errors[field.name]"
+        />
+      </div>
+
+      <!-- Submit Button -->
+      <v-btn type="submit">Register</v-btn>
+    </v-form>
+  </div>
+</template>
+
+```
+```
+cai nay chua co validation
+import { IApp } from "~/applications/application";
+import { useField, useForm } from "vee-validate";
+import * as yup from "yup";
+import { Ref, ref } from 'vue';
+
+// Định nghĩa Props động thay vì cố định từng trường
+export interface Props {
+    fields: { name: string, label: string, placeholder: string }[];
+}
+
+export class Controller {
+    public $app;
+    public props: Props;
+    public formValid;
+    public loading;
+    public fields: Record<string, Ref<string>>;
+    public templateRefArray: Ref<unknown>[];
+
+    constructor(app: IApp, props: Props) {
+        this.$app = app;
+        this.props = props;
+        this.loading = ref(false);
+
+        // Khởi tạo formValid với xác thực động dựa trên props.fields
+        const validationSchema: any = {};
+
+        this.props.fields.forEach(field => {
+            validationSchema[field.name] = yup.string().required(`${field.label} không được bỏ trống`);
+        });
+
+        // Khởi tạo formValid với xác thực động từ validationSchema
+        this.formValid = useForm({
+            validationSchema: yup.object(validationSchema),
+        });
+
+        // Khởi tạo các trường động sử dụng useField
+        this.fields = {};
+        this.props.fields.forEach(field => {
+            this.fields[field.name] = useField(field.name).value;
+        });
+
+        this.templateRefArray = [];
+    }
+
+    public load = async (): Promise<void> => {
+        try {
+            this.loading.value = true;
+            // const res = await this.$app.$api.get(`/api/v1/conditions/${this.props.id}`);
+            // this.condition.value = res.data;
+        } finally {
+            this.loading.value = false;
+        }
+    };
+
+    public entryAutoField = async (): Promise<void> => {
+        this.loading.value = true;
+        this.loading.value = false;
+    };
+
+    public cancel = async (): Promise<void> => {
+        this.loading.value = true;
+        this.loading.value = false;
+    };
+
+    public regist = async (callback?: () => void): Promise<void> => {
+        this.loading.value = true;
+
+        const { validate } = this.formValid;
+        await validate();
+
+        for (const templateRef of this.templateRefArray) {
+            const mTextFieldRef = templateRef.value as MTextFieldInterface;
+            if (mTextFieldRef.isError() === true) {
+                mTextFieldRef.focus();
+                break;
+            }
+        }
+
+        await this.formValid.handleSubmit(async () => {
+            if (callback) {
+                callback();
+            }
+        })();
+
+        this.loading.value = false;
+    };
+
+    public get errors() {
+        return this.formValid.errors;
+    }
+}
+
+```
+--------haha-------
+```
 import { useForm, useField } from 'vee-validate';
 import * as yup from 'yup';
 
