@@ -1,4 +1,232 @@
 ```
+Tạo file cơ sở dữ liệu appsettings.json:
+
+json
+Sao chép mã
+{
+  "ConnectionStrings": {
+    "DefaultConnection": "Server=(localdb)\\mssqllocaldb;Database=MyWebApiDB;Trusted_Connection=True;MultipleActiveResultSets=true"
+  },
+  "Jwt": {
+    "Key": "supersecretkey123456",
+    "Issuer": "MyWebApi",
+    "Audience": "MyWebApi"
+  },
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore": "Warning"
+    }
+  }
+}
+2. Cấu hình cơ sở dữ liệu và Identity
+Thêm lớp ApplicationUser: Tạo file Models/ApplicationUser.cs:
+
+csharp
+Sao chép mã
+using Microsoft.AspNetCore.Identity;
+
+public class ApplicationUser : IdentityUser
+{
+}
+Cấu hình DbContext: Tạo file Data/ApplicationDbContext.cs:
+
+csharp
+Sao chép mã
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
+
+public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
+{
+    public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : base(options)
+    {
+    }
+}
+Cập nhật Program.cs:
+
+csharp
+Sao chép mã
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
+
+var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddDbContext<ApplicationDbContext>(options =>
+    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+
+builder.Services.AddIdentity<ApplicationUser, IdentityRole>()
+    .AddEntityFrameworkStores<ApplicationDbContext>()
+    .AddDefaultTokenProviders();
+
+builder.Services.AddAuthentication(options =>
+{
+    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+}).AddJwtBearer(options =>
+{
+    options.TokenValidationParameters = new TokenValidationParameters
+    {
+        ValidateIssuer = true,
+        ValidateAudience = true,
+        ValidateLifetime = true,
+        ValidateIssuerSigningKey = true,
+        ValidIssuer = builder.Configuration["Jwt:Issuer"],
+        ValidAudience = builder.Configuration["Jwt:Audience"],
+        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]))
+    };
+});
+
+builder.Services.AddControllers();
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
+
+var app = builder.Build();
+
+app.UseAuthentication();
+app.UseAuthorization();
+app.UseSwagger();
+app.UseSwaggerUI();
+
+app.MapControllers();
+
+app.Run();
+3. Xây dựng các API
+Tạo AuthController để xử lý Đăng ký, Đăng nhập, và Đăng xuất: Tạo file Controllers/AuthController.cs:
+
+csharp
+Sao chép mã
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.IdentityModel.Tokens;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
+using System.Text;
+
+[ApiController]
+[Route("api/[controller]")]
+public class AuthController : ControllerBase
+{
+    private readonly UserManager<ApplicationUser> _userManager;
+    private readonly IConfiguration _configuration;
+
+    public AuthController(UserManager<ApplicationUser> userManager, IConfiguration configuration)
+    {
+        _userManager = userManager;
+        _configuration = configuration;
+    }
+
+    [HttpPost("register")]
+    public async Task<IActionResult> Register([FromBody] RegisterModel model)
+    {
+        var user = new ApplicationUser { UserName = model.Email, Email = model.Email };
+        var result = await _userManager.CreateAsync(user, model.Password);
+
+        if (!result.Succeeded) return BadRequest(result.Errors);
+
+        return Ok(new { message = "User registered successfully" });
+    }
+
+    [HttpPost("login")]
+    public async Task<IActionResult> Login([FromBody] LoginModel model)
+    {
+        var user = await _userManager.FindByEmailAsync(model.Email);
+        if (user == null || !await _userManager.CheckPasswordAsync(user, model.Password))
+            return Unauthorized(new { message = "Invalid credentials" });
+
+        var authClaims = new[]
+        {
+            new Claim(ClaimTypes.Name, user.UserName),
+            new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
+        };
+
+        var authSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["Jwt:Key"]));
+
+        var token = new JwtSecurityToken(
+            issuer: _configuration["Jwt:Issuer"],
+            audience: _configuration["Jwt:Audience"],
+            expires: DateTime.Now.AddHours(3),
+            claims: authClaims,
+            signingCredentials: new SigningCredentials(authSigningKey, SecurityAlgorithms.HmacSha256)
+        );
+
+        return Ok(new { token = new JwtSecurityTokenHandler().WriteToken(token), expiration = token.ValidTo });
+    }
+}
+
+public class RegisterModel
+{
+    public string Email { get; set; }
+    public string Password { get; set; }
+}
+
+public class LoginModel
+{
+    public string Email { get; set; }
+    public string Password { get; set; }
+}
+Tạo ItemController để xử lý Xem, Thêm, Xóa, Sửa: Tạo file Controllers/ItemController.cs:
+
+csharp
+Sao chép mã
+[ApiController]
+[Route("api/[controller]")]
+public class ItemController : ControllerBase
+{
+    private static List<Item> Items = new();
+
+    [HttpGet]
+    public IActionResult GetItems() => Ok(Items);
+
+    [HttpPost]
+    public IActionResult AddItem([FromBody] Item item)
+    {
+        Items.Add(item);
+        return Ok(new { message = "Item added successfully" });
+    }
+
+    [HttpPut("{id}")]
+    public IActionResult UpdateItem(int id, [FromBody] Item item)
+    {
+        var existingItem = Items.FirstOrDefault(i => i.Id == id);
+        if (existingItem == null) return NotFound();
+
+        existingItem.Name = item.Name;
+        existingItem.Description = item.Description;
+        return Ok(new { message = "Item updated successfully" });
+    }
+
+    [HttpDelete("{id}")]
+    public IActionResult DeleteItem(int id)
+    {
+        var item = Items.FirstOrDefault(i => i.Id == id);
+        if (item == null) return NotFound();
+
+        Items.Remove(item);
+        return Ok(new { message = "Item deleted successfully" });
+    }
+}
+
+public class Item
+{
+    public int Id { get; set; }
+    public string Name { get; set; }
+    public string Description { get; set; }
+}
+4. Chạy ứng dụng
+Migrate database:
+bash
+Sao chép mã
+dotnet ef migrations add InitialCreate
+dotnet ef database update
+Chạy ứng dụng:
+bash
+Sao chép mã
+dotnet run
+```
+```
 const FormController = createFormController([
     { name: 'lastName', validation: yup.string().required('Họ không được bỏ trống') },
     { name: 'firstName', validation: yup.string().required('Tên không được bỏ trống') }
